@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block title %}Caja{% endblock %}{% block page_title %}Caja{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('exportar_cobros') }}" class="btn btn-ghost">⬇ CSV</a>
+  <button class="btn btn-primary" onclick="openModal('cobro')">+ Registrar Cobro</button>
+{% endblock %}
+{% block content %}
+<div class="stats-row" style="grid-template-columns:repeat(3,1fr)">
+  <div class="stat-card"><div class="stat-label">Total Cobrado (Mes)</div>
+    <div class="stat-value c-success">{{ fmt_peso(total_mes) }}</div></div>
+  <div class="stat-card"><div class="stat-label">Comisiones Est. (15%)</div>
+    <div class="stat-value c-accent">{{ fmt_peso(total_mes * 0.15) }}</div></div>
+  <div class="stat-card"><div class="stat-label">Movimientos Totales</div>
+    <div class="stat-value c-blue">{{ cobros|length }}</div></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr {% if session.sucursal=='ambas' %}1fr{% endif %};gap:14px;margin-bottom:20px">
+  <div class="card"><div class="card-title">💳 Por Método (mes)</div>
+    {% for m,v in metodos.items() %}<div class="row-item"><span class="row-label">{{ m }}</span><span class="row-value">{{ fmt_peso(v) }}</span></div>{% else %}<div style="color:var(--muted);font-size:13px">Sin movimientos</div>{% endfor %}
+  </div>
+  <div class="card"><div class="card-title">🏢 Por Aseguradora (mes)</div>
+    {% for a,v in asegs.items() %}<div class="row-item"><span class="row-label">{{ a }}</span><span class="row-value">{{ fmt_peso(v) }}</span></div>{% else %}<div style="color:var(--muted);font-size:13px">Sin movimientos</div>{% endfor %}
+  </div>
+  {% if session.sucursal == 'ambas' %}
+  <div class="card"><div class="card-title">📍 Por Sucursal (mes)</div>
+    {% for s,v in sucs.items() %}<div class="row-item"><span class="row-label">{{ s }}</span><span class="row-value">{{ fmt_peso(v) }}</span></div>{% else %}<div style="color:var(--muted);font-size:13px">Sin movimientos</div>{% endfor %}
+  </div>
+  {% endif %}
+</div>
+<div class="table-wrap">
+  <div class="table-header"><div class="table-title">Todos los Movimientos</div></div>
+  <table><thead><tr><th>Fecha</th><th>Cliente</th><th>Aseguradora</th><th>Sucursal</th><th>Concepto</th><th>Método</th><th>Monto</th><th></th></tr></thead>
+  <tbody>
+    {% for c in cobros %}
+    <tr>
+      <td>{{ fmt_fecha(c.fecha) }}</td>
+      <td><strong>{{ c.cliente }}</strong></td>
+      <td>{% if c.aseguradora %}<span class="badge badge-{{ 'nre' if 'NRE' in c.aseguradora else 'atm' }}">{{ c.aseguradora }}</span>{% else %}—{% endif %}</td>
+      <td>{% if c.sucursal %}<span class="badge badge-{{ c.sucursal.lower() }}">{{ c.sucursal }}</span>{% else %}—{% endif %}</td>
+      <td style="font-size:12px">{{ c.concepto or '—' }}</td>
+      <td><span class="badge badge-ok">{{ c.metodo }}</span></td>
+      <td style="font-family:'Syne',sans-serif;font-weight:700;color:var(--success)">{{ fmt_peso(c.monto) }}</td>
+      <td>
+        <form method="POST" action="{{ url_for('eliminar_cobro', cid=c.id) }}" style="display:inline" onsubmit="return confirm('¿Eliminar?')">
+          <button class="btn btn-ghost btn-sm">🗑</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8"><div class="empty"><div class="empty-icon">💰</div><div class="empty-text">Sin movimientos</div></div></td></tr>
+    {% endfor %}
+  </tbody></table>
+</div>
+{% endblock %}
+{% block modals %}
+<div class="modal-overlay" id="modal-cobro">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-title">💰 Registrar Cobro</div>
+    <form method="POST" action="{{ url_for('nuevo_cobro') }}">
+      <div class="form-grid">
+        <div class="form-group"><label>Fecha *</label><input name="fecha" type="date" required></div>
+        <div class="form-group"><label>Cliente *</label>
+          <select name="cliente" required>
+            <option value="">— Seleccionar —</option>
+            {% for c in clientes %}<option>{{ c.nombre }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group"><label>Aseguradora</label>
+          <select name="aseguradora"><option>NRE</option><option>ATM</option></select>
+        </div>
+        {% if session.sucursal == 'ambas' %}
+        <div class="form-group"><label>Sucursal</label>
+          <select name="sucursal"><option>Roca</option><option>Sarmiento</option></select>
+        </div>
+        {% endif %}
+        <div class="form-group"><label>Concepto</label><input name="concepto" placeholder="Prima enero 2025"></div>
+        <div class="form-group"><label>Método *</label>
+          <select name="metodo"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option><option>Mercado Pago</option></select>
+        </div>
+        <div class="form-group full"><label>Monto ($) *</label><input name="monto" type="number" step="0.01" required></div>
+        <div class="form-group full"><label>Notas</label><textarea name="notas" rows="2"></textarea></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('cobro')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Registrar Cobro</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+  const hoy = new Date().toISOString().split('T')[0];
+  const f = document.querySelector('#modal-cobro input[name=fecha]');
+  if(f && !f.value) f.value = hoy;
+});
+</script>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% macro docs_btns(p) %}
+<div class="docs-btns">
+  {% set aseg = p.aseguradora|upper %}
+  <a href="{{ url_for('generar_doc', pid=p.id, tipo='mercosur') }}" class="btn btn-ghost btn-sm" title="Mercosur" target="_blank">🌎</a>
+  <a href="{{ url_for('generar_doc', pid=p.id, tipo='cert_cobertura') }}" class="btn btn-ghost btn-sm" title="Cert. Cobertura" target="_blank">📄</a>
+  {% if 'NRE' in aseg %}
+  <a href="{{ url_for('generar_doc', pid=p.id, tipo='frente_poliza') }}" class="btn btn-ghost btn-sm" title="Frente de Póliza" target="_blank">📃</a>
+  {% endif %}
+  {% if 'ATM' in aseg %}
+  <a href="{{ url_for('generar_doc', pid=p.id, tipo='tarjeta_circulacion') }}" class="btn btn-ghost btn-sm" title="Tarjeta Circulación" target="_blank">🪪</a>
+  {% endif %}
+</div>
+{% endmacro %}

@@ -1,0 +1,375 @@
+{% extends 'base.html' %}
+{% block title %}Siniestros — SegurosPro{% endblock %}
+{% block page_title %}🚨 Siniestros{% endblock %}
+{% block topbar_actions %}
+  <button class="btn btn-primary" onclick="openModal('siniestro')">+ Nuevo Siniestro</button>
+  <a href="/exportar/siniestros" class="btn btn-ghost">⬇ Exportar CSV</a>
+{% endblock %}
+
+{% block content %}
+
+<!-- Filtros -->
+<div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;align-items:center">
+  <form method="GET" class="search-form" style="flex:1;min-width:220px">
+    <input class="search-box" name="q" value="{{ q }}" placeholder="Buscar por asegurado, póliza, patente...">
+    <button class="btn btn-ghost btn-sm" type="submit">Buscar</button>
+    {% if q %}<a href="/siniestros" class="btn btn-ghost btn-sm">✕</a>{% endif %}
+  </form>
+  <form method="GET" style="display:flex;gap:6px">
+    <select name="estado_f" onchange="this.form.submit()" style="padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">
+      <option value="">Todos los estados</option>
+      <option value="Abierto" {{ 'selected' if estado_f=='Abierto' }}>Abierto</option>
+      <option value="En proceso" {{ 'selected' if estado_f=='En proceso' }}>En proceso</option>
+      <option value="Cerrado" {{ 'selected' if estado_f=='Cerrado' }}>Cerrado</option>
+      <option value="Rechazado" {{ 'selected' if estado_f=='Rechazado' }}>Rechazado</option>
+    </select>
+    <input type="hidden" name="q" value="{{ q }}">
+  </form>
+</div>
+
+<!-- Stats -->
+<div class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">
+  <div class="stat-card">
+    <div class="stat-label">Total Siniestros</div>
+    <div class="stat-value c-accent">{{ total }}</div>
+    <div class="stat-sub">registrados</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Abiertos</div>
+    <div class="stat-value c-danger">{{ abiertos }}</div>
+    <div class="stat-sub">en curso</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">En Proceso</div>
+    <div class="stat-value" style="color:var(--accent)">{{ en_proceso }}</div>
+    <div class="stat-sub">tramitando</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Cerrados</div>
+    <div class="stat-value c-success">{{ cerrados }}</div>
+    <div class="stat-sub">resueltos</div>
+  </div>
+</div>
+
+<!-- Tabla -->
+<div class="table-wrap">
+  <div class="table-header">
+    <span class="table-title">Registro de Siniestros</span>
+    <span style="font-size:12px;color:var(--muted)">{{ lista|length }} resultado(s)</span>
+  </div>
+  {% if lista %}
+  <table>
+    <thead>
+      <tr>
+        <th>Nº Denuncia</th>
+        <th>Fecha</th>
+        <th>Asegurado</th>
+        <th>Aseguradora</th>
+        <th>Póliza</th>
+        <th>Patente</th>
+        <th>Tipo</th>
+        <th>Estado</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for s in lista %}
+    <tr>
+      <td><b style="font-family:'Syne',sans-serif">{{ s.numero_denuncia }}</b></td>
+      <td>{{ fmt_fecha(s.fecha_siniestro) }}</td>
+      <td>{{ s.nombre_asegurado }}</td>
+      <td>
+        <span class="badge badge-{{ 'nre' if 'NRE' in s.aseguradora else 'atm' }}">{{ s.aseguradora }}</span>
+      </td>
+      <td><span style="font-family:monospace;font-size:12px">{{ s.npoliza or '—' }}</span></td>
+      <td>{{ s.patente or '—' }}</td>
+      <td><span class="badge badge-warn">{{ s.tipo_siniestro }}</span></td>
+      <td>
+        {% if s.estado == 'Abierto' %}
+          <span class="badge badge-exp">🔴 Abierto</span>
+        {% elif s.estado == 'En proceso' %}
+          <span class="badge badge-warn">🟡 En proceso</span>
+        {% elif s.estado == 'Cerrado' %}
+          <span class="badge badge-ok">🟢 Cerrado</span>
+        {% else %}
+          <span class="badge" style="background:rgba(100,100,100,.15);color:var(--muted)">⚫ {{ s.estado }}</span>
+        {% endif %}
+      </td>
+      <td>
+        <div class="action-btns">
+          <button class="btn btn-ghost btn-sm" onclick="verSiniestro({{ s.id }})">Ver</button>
+          <a href="/siniestros/pdf/{{ s.id }}" class="btn btn-ghost btn-sm">📄 PDF</a>
+          <form method="POST" action="/siniestros/eliminar/{{ s.id }}" style="display:inline"
+            onsubmit="return confirm('¿Eliminar este siniestro?')">
+            <button class="btn btn-danger btn-sm">✕</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon">🚨</div>
+    <div class="empty-text">No hay siniestros registrados</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- MODAL NUEVO SINIESTRO -->
+<div class="modal-overlay" id="modal-siniestro">
+  <div class="modal" style="width:720px">
+    <div class="modal-title">🚨 Nuevo Siniestro</div>
+    <form method="POST" action="/siniestros/nuevo" id="form-siniestro">
+      <div class="form-grid">
+
+        <div class="form-group full" style="background:var(--surface2);border-radius:8px;padding:10px">
+          <label style="font-size:11px;color:var(--accent);display:block;margin-bottom:6px">BUSCAR PÓLIZA EXISTENTE</label>
+          <div style="display:flex;gap:8px">
+            <input type="text" id="sin-buscar-input" placeholder="Nombre, DNI o Patente..."
+              oninput="buscarParaSiniestro(this.value)"
+              style="flex:1;padding:8px 12px;background:var(--surface);border:1px solid var(--accent);border-radius:8px;color:var(--text);font-size:13px;outline:none">
+          </div>
+          <div id="sin-resultados" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:180px;overflow-y:auto;z-index:10;position:relative"></div>
+          <div id="sin-seleccionado" style="display:none;margin-top:6px;font-size:12px;color:var(--success)">✅ Datos cargados desde póliza</div>
+        </div>
+
+        <div class="form-group full" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+          <label style="font-size:12px;color:var(--accent)">DATOS DEL SINIESTRO</label>
+        </div>
+
+        <div class="form-group">
+          <label>Aseguradora *</label>
+          <select name="aseguradora" id="sin-aseguradora" required>
+            <option>NRE</option><option>ATM</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Tipo de Siniestro *</label>
+          <select name="tipo_siniestro" required>
+            <option>Choque</option>
+            <option>Robo total</option>
+            <option>Robo parcial</option>
+            <option>Granizo</option>
+            <option>Incendio</option>
+            <option>Responsabilidad Civil</option>
+            <option>Rotura de vidrios</option>
+            <option>Daño parcial</option>
+            <option>Otros</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Fecha del Siniestro *</label>
+          <input type="date" name="fecha_siniestro" required id="sin-fecha">
+        </div>
+        <div class="form-group">
+          <label>Fecha de Denuncia</label>
+          <input type="date" name="fecha_denuncia" id="sin-fecha-den">
+        </div>
+
+        <div class="form-group full" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+          <label style="font-size:12px;color:var(--accent)">DATOS DEL ASEGURADO / VEHÍCULO</label>
+        </div>
+        <div class="form-group">
+          <label>Nombre Asegurado *</label>
+          <input name="nombre_asegurado" id="sin-nombre" placeholder="Juan García" required>
+        </div>
+        <div class="form-group">
+          <label>DNI / CUIT</label>
+          <input name="dni_asegurado" id="sin-dni" placeholder="12345678">
+        </div>
+        <div class="form-group">
+          <label>Nº Póliza</label>
+          <input name="npoliza" id="sin-npoliza" placeholder="123456">
+        </div>
+        <div class="form-group">
+          <label>Patente</label>
+          <input name="patente" id="sin-patente" placeholder="AB123CD" style="text-transform:uppercase">
+        </div>
+        <div class="form-group">
+          <label>Marca / Modelo</label>
+          <input name="vehiculo" id="sin-vehiculo" placeholder="CHEVROLET COBALT">
+        </div>
+        <div class="form-group">
+          <label>Año</label>
+          <input name="anio_vehiculo" id="sin-anio" placeholder="2020">
+        </div>
+
+        <div class="form-group full" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+          <label style="font-size:12px;color:var(--accent)">DESCRIPCIÓN DEL HECHO</label>
+        </div>
+        <div class="form-group full">
+          <label>Lugar del Siniestro</label>
+          <input name="lugar_siniestro" placeholder="Av. San Martín y Belgrano, San Miguel de Tucumán">
+        </div>
+        <div class="form-group full">
+          <label>Descripción *</label>
+          <textarea name="descripcion" rows="3" required
+            placeholder="Descripción detallada del siniestro..."></textarea>
+        </div>
+        <div class="form-group full">
+          <label>Daños Declarados</label>
+          <textarea name="danos" rows="2" placeholder="Descripción de daños al vehículo..."></textarea>
+        </div>
+
+        <div class="form-group full" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+          <label style="font-size:12px;color:var(--accent)">TERCERO INVOLUCRADO (si corresponde)</label>
+        </div>
+        <div class="form-group">
+          <label>Nombre Tercero</label>
+          <input name="tercero_nombre" placeholder="Nombre del tercero">
+        </div>
+        <div class="form-group">
+          <label>Patente Tercero</label>
+          <input name="tercero_patente" placeholder="AB123CD">
+        </div>
+        <div class="form-group">
+          <label>Tel. Tercero</label>
+          <input name="tercero_tel" placeholder="381-xxx-xxxx">
+        </div>
+        <div class="form-group">
+          <label>Seguro Tercero</label>
+          <input name="tercero_seguro" placeholder="Nombre compañía">
+        </div>
+
+        <div class="form-group full" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+          <label style="font-size:12px;color:var(--accent)">GESTIÓN</label>
+        </div>
+        <div class="form-group">
+          <label>Estado</label>
+          <select name="estado">
+            <option>Abierto</option>
+            <option>En proceso</option>
+            <option>Cerrado</option>
+            <option>Rechazado</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Nº Denuncia Interna</label>
+          <input name="numero_denuncia" id="sin-ndenuncia" placeholder="Auto-generado">
+        </div>
+        {% if session.sucursal == 'ambas' %}
+        <div class="form-group">
+          <label>Sucursal</label>
+          <select name="sucursal">
+            <option value="Roca">Roca</option>
+            <option value="Sarmiento">Sarmiento</option>
+          </select>
+        </div>
+        {% endif %}
+        <div class="form-group full">
+          <label>Observaciones / Seguimiento</label>
+          <textarea name="obs" rows="2" placeholder="Notas de seguimiento..."></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('siniestro')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">💾 Registrar Siniestro</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL VER SINIESTRO -->
+<div class="modal-overlay" id="modal-ver-siniestro">
+  <div class="modal" style="width:640px" id="modal-ver-content">
+    <div class="modal-title">📋 Detalle del Siniestro</div>
+    <div id="ver-siniestro-body" style="color:var(--muted);text-align:center;padding:30px">Cargando...</div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeModal('ver-siniestro')">Cerrar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Fechas de hoy por defecto
+document.addEventListener('DOMContentLoaded', () => {
+  const hoy = new Date().toISOString().split('T')[0];
+  const fd = document.getElementById('sin-fecha');
+  const fdd = document.getElementById('sin-fecha-den');
+  if (fd && !fd.value) fd.value = hoy;
+  if (fdd && !fdd.value) fdd.value = hoy;
+});
+let sinTimer;
+function buscarParaSiniestro(q) {
+  clearTimeout(sinTimer);
+  const res = document.getElementById('sin-resultados');
+  if (q.length < 2) { res.style.display='none'; return; }
+  sinTimer = setTimeout(() => {
+    fetch('/api/buscar-cliente?q=' + encodeURIComponent(q))
+      .then(r => r.json())
+      .then(data => {
+        if (!data.length) {
+          res.innerHTML = '<div style="padding:12px;color:var(--muted);font-size:13px">Sin resultados</div>';
+        } else {
+          res.innerHTML = data.map(c => `
+            <div onclick="seleccionarParaSiniestro(${JSON.stringify(c).replace(/"/g,'&quot;')})"
+              style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px"
+              onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+              <b>${c.nombre}</b> — ${c.patente||'—'} — DNI: ${c.dni||'—'}
+              <span style="color:var(--muted);font-size:11px;display:block">${c.marca||''} ${c.modelo||''} ${c.anio||''}</span>
+            </div>`).join('');
+        }
+        res.style.display = 'block';
+      });
+  }, 280);
+}
+
+function seleccionarParaSiniestro(c) {
+  document.getElementById('sin-nombre').value  = c.nombre || '';
+  document.getElementById('sin-dni').value     = c.dni    || '';
+  document.getElementById('sin-patente').value = c.patente|| '';
+  document.getElementById('sin-vehiculo').value= (c.marca||'') + ' ' + (c.modelo||'');
+  document.getElementById('sin-anio').value    = c.anio   || '';
+  document.getElementById('sin-resultados').style.display = 'none';
+  document.getElementById('sin-seleccionado').style.display = 'block';
+  document.getElementById('sin-buscar-input').value = c.nombre;
+}
+
+function verSiniestro(id) {
+  openModal('ver-siniestro');
+  fetch('/siniestros/detalle/' + id)
+    .then(r => r.json())
+    .then(s => {
+      const est = {'Abierto':'badge-exp','En proceso':'badge-warn','Cerrado':'badge-ok','Rechazado':''}[s.estado]||'';
+      document.getElementById('ver-siniestro-body').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;text-align:left">
+          ${fila('Nº Denuncia', s.numero_denuncia)}
+          ${fila('Fecha Siniestro', s.fecha_siniestro)}
+          ${fila('Aseguradora', s.aseguradora)}
+          ${fila('Tipo', s.tipo_siniestro)}
+          ${fila('Asegurado', s.nombre_asegurado)}
+          ${fila('DNI', s.dni_asegurado)}
+          ${fila('Póliza', s.npoliza)}
+          ${fila('Patente', s.patente)}
+          ${fila('Vehículo', s.vehiculo)}
+          ${fila('Año', s.anio_vehiculo)}
+          ${fila('Lugar', s.lugar_siniestro, true)}
+          ${fila('Descripción', s.descripcion, true)}
+          ${fila('Daños', s.danos, true)}
+          ${s.tercero_nombre ? fila('Tercero', s.tercero_nombre) : ''}
+          ${s.tercero_patente ? fila('Patente Tercero', s.tercero_patente) : ''}
+          ${fila('Estado', '<span class="badge '+est+'">'+s.estado+'</span>', false, true)}
+          ${s.obs ? fila('Observaciones', s.obs, true) : ''}
+        </div>
+        <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+          <a href="/siniestros/pdf/${s.id}" class="btn btn-primary btn-sm">📄 Generar PDF</a>
+        </div>`;
+    });
+}
+
+function fila(l, v, full=false, raw=false) {
+  if (!v) return '';
+  const val = raw ? v : `<span style="color:var(--text);font-weight:600">${v}</span>`;
+  return `<div style="grid-column:${full?'span 2':'auto'}">
+    <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;margin-bottom:2px">${l}</div>
+    <div style="font-size:13px">${val}</div>
+  </div>`;
+}
+</script>
+{% endblock %}
