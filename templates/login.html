@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SegurosPro — Ingresar</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:#0d0f14;color:#eef0f5;min-height:100vh;display:flex;align-items:center;justify-content:center}
+.wrap{width:420px;max-width:95vw}
+.logo{font-family:'Syne',sans-serif;font-size:34px;font-weight:800;color:#e8c84a;text-align:center;margin-bottom:4px}
+.logo span{color:#eef0f5;font-weight:400}
+.sub{text-align:center;color:#6b7280;font-size:13px;margin-bottom:28px}
+.card{background:#161920;border:1px solid #2a2f3e;border-radius:16px;padding:28px}
+.form-group{margin-bottom:16px}
+label{display:block;font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
+input{width:100%;padding:10px 13px;background:#1e2230;border:1px solid #2a2f3e;border-radius:8px;color:#eef0f5;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border-color .2s}
+input:focus{border-color:#e8c84a}
+.btn{width:100%;padding:11px;border-radius:8px;border:none;cursor:pointer;font-family:'Syne',sans-serif;font-size:14px;font-weight:700;background:#e8c84a;color:#0d0f14;transition:all .2s;margin-top:6px}
+.btn:hover{background:#f0d060;transform:translateY(-1px)}
+.alert{background:rgba(232,90,74,.1);border:1px solid rgba(232,90,74,.25);border-radius:8px;padding:10px 14px;font-size:13px;color:#e85a4a;margin-bottom:16px}
+.hint{margin-top:18px;padding:12px;background:#1e2230;border-radius:8px;font-size:12px;color:#6b7280;line-height:1.7}
+.hint strong{color:#e8c84a}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">Seguros<span>Pro</span></div>
+  <div class="sub">Sistema de Gestión</div>
+  <div class="card">
+    {% for cat,msg in get_flashed_messages(with_categories=true) %}
+    <div class="alert">❌ {{ msg }}</div>
+    {% endfor %}
+    <form method="POST">
+      <div class="form-group"><label>Email</label><input type="email" name="email" required autofocus placeholder="tu@email.com"></div>
+      <div class="form-group"><label>Contraseña</label><input type="password" name="password" required placeholder="••••••••"></div>
+      <button type="submit" class="btn">Ingresar →</button>
+    </form>
+    <div class="hint">
+      <strong>Primer acceso:</strong><br>
+      admin@seguros.com / admin123<br>
+      <span style="color:#e85a4a">⚠ Cambiá la contraseña al ingresar en Usuarios</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

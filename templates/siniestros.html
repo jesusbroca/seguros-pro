@@ -1,0 +1,401 @@
+{% extends 'base.html' %}
+{% block title %}Siniestros — SegurosPro{% endblock %}
+{% block page_title %}🚨 Siniestros{% endblock %}
+{% block topbar_actions %}
+  <button class="btn btn-primary" onclick="openModal('siniestro')">+ Nuevo Siniestro</button>
+  <a href="/exportar/siniestros" class="btn btn-ghost">⬇ CSV</a>
+{% endblock %}
+
+{% block content %}
+<!-- Filtros -->
+<div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;align-items:center">
+  <form method="GET" class="search-form" style="flex:1;min-width:220px">
+    <input class="search-box" name="q" value="{{ q }}" placeholder="Asegurado, póliza, patente...">
+    <button class="btn btn-ghost btn-sm" type="submit">Buscar</button>
+    {% if q %}<a href="/siniestros" class="btn btn-ghost btn-sm">✕</a>{% endif %}
+    <input type="hidden" name="estado_f" value="{{ estado_f }}">
+  </form>
+  <form method="GET" style="display:flex;gap:6px">
+    <select name="estado_f" onchange="this.form.submit()"
+      style="padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">
+      <option value="">Todos los estados</option>
+      <option value="Abierto" {{ 'selected' if estado_f=='Abierto' }}>🔴 Abierto</option>
+      <option value="En proceso" {{ 'selected' if estado_f=='En proceso' }}>🟡 En proceso</option>
+      <option value="Cerrado" {{ 'selected' if estado_f=='Cerrado' }}>🟢 Cerrado</option>
+      <option value="Rechazado" {{ 'selected' if estado_f=='Rechazado' }}>⚫ Rechazado</option>
+    </select>
+    <input type="hidden" name="q" value="{{ q }}">
+  </form>
+</div>
+
+<!-- Stats -->
+<div class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">
+  <div class="stat-card"><div class="stat-label">Total</div>
+    <div class="stat-value c-accent">{{ total }}</div><div class="stat-sub">registrados</div></div>
+  <div class="stat-card"><div class="stat-label">Abiertos</div>
+    <div class="stat-value c-danger">{{ abiertos }}</div><div class="stat-sub">en curso</div></div>
+  <div class="stat-card"><div class="stat-label">En Proceso</div>
+    <div class="stat-value" style="color:var(--accent)">{{ en_proceso }}</div><div class="stat-sub">tramitando</div></div>
+  <div class="stat-card"><div class="stat-label">Cerrados</div>
+    <div class="stat-value c-success">{{ cerrados }}</div><div class="stat-sub">resueltos</div></div>
+</div>
+
+<!-- Tabla -->
+<div class="table-wrap">
+  <div class="table-header">
+    <span class="table-title">Registro de Siniestros</span>
+    <span style="font-size:12px;color:var(--muted)">{{ lista|length }} resultado(s)</span>
+  </div>
+  {% if lista %}
+  <table>
+    <thead><tr>
+      <th>Nº Denuncia</th><th>Fecha</th><th>Asegurado</th><th>Aseg.</th>
+      <th>Póliza / Patente</th><th>Tipo</th><th>Estado</th><th>Acciones</th>
+    </tr></thead>
+    <tbody>
+    {% for s in lista %}
+    <tr>
+      <td><b style="font-family:'Syne',sans-serif;color:var(--accent)">{{ s.numero_denuncia }}</b></td>
+      <td style="white-space:nowrap">{{ fmt_fecha(s.fecha_siniestro) }}</td>
+      <td>
+        <strong>{{ s.nombre_asegurado }}</strong>
+        {% if s.dni_asegurado %}<br><span style="font-size:11px;color:var(--muted)">{{ s.dni_asegurado }}</span>{% endif %}
+      </td>
+      <td><span class="badge badge-{{ 'nre' if 'NRE' in s.aseguradora else 'atm' }}">{{ s.aseguradora }}</span></td>
+      <td>
+        <span style="font-family:monospace;font-size:12px">{{ s.npoliza or '—' }}</span>
+        {% if s.patente %}<br><span style="font-family:monospace;font-size:11px;color:var(--muted)">{{ s.patente }}</span>{% endif %}
+      </td>
+      <td><span class="badge badge-warn" style="white-space:nowrap">{{ s.tipo_siniestro }}</span></td>
+      <td>
+        <!-- Selector de estado inline -->
+        <div style="position:relative">
+          <select onchange="cambiarEstado({{ s.id }}, this.value, this)"
+            style="padding:3px 8px;border-radius:20px;border:none;font-size:11px;font-weight:700;cursor:pointer;
+            background:{% if s.estado=='Abierto' %}rgba(232,90,74,.2){% elif s.estado=='En proceso' %}rgba(232,200,74,.2){% elif s.estado=='Cerrado' %}rgba(74,232,150,.2){% else %}rgba(100,100,100,.2){% endif %};
+            color:{% if s.estado=='Abierto' %}var(--danger){% elif s.estado=='En proceso' %}var(--accent){% elif s.estado=='Cerrado' %}var(--success){% else %}var(--muted){% endif %}">
+            <option value="Abierto" {{ 'selected' if s.estado=='Abierto' }}>🔴 Abierto</option>
+            <option value="En proceso" {{ 'selected' if s.estado=='En proceso' }}>🟡 En proceso</option>
+            <option value="Cerrado" {{ 'selected' if s.estado=='Cerrado' }}>🟢 Cerrado</option>
+            <option value="Rechazado" {{ 'selected' if s.estado=='Rechazado' }}>⚫ Rechazado</option>
+          </select>
+        </div>
+      </td>
+      <td>
+        <div class="action-btns">
+          <button class="btn btn-ghost btn-sm" onclick="verSiniestro({{ s.id }})">👁 Ver</button>
+          <button class="btn btn-ghost btn-sm" onclick="editarSiniestro({{ s.id }})">✏</button>
+          <a href="/siniestros/pdf/{{ s.id }}" class="btn btn-ghost btn-sm">📄</a>
+          <form method="POST" action="/siniestros/eliminar/{{ s.id }}" style="display:inline"
+            onsubmit="return confirm('¿Eliminar este siniestro?')">
+            <button class="btn btn-danger btn-sm">✕</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><div class="empty-icon">🚨</div><div class="empty-text">No hay siniestros registrados</div></div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- MODAL NUEVO SINIESTRO -->
+<div class="modal-overlay" id="modal-siniestro">
+  <div class="modal" style="width:720px">
+    <div class="modal-title">🚨 Nuevo Siniestro</div>
+    <form method="POST" action="/siniestros/nuevo">
+      <div class="form-grid">
+        <!-- Buscador -->
+        <div class="form-group full" style="background:var(--surface2);border-radius:8px;padding:10px">
+          <label style="font-size:11px;color:var(--accent);display:block;margin-bottom:6px">BUSCAR PÓLIZA EXISTENTE</label>
+          <input type="text" id="sin-buscar-input" placeholder="Nombre, DNI o Patente..."
+            oninput="buscarParaSiniestro(this.value)"
+            style="width:100%;padding:8px 12px;background:var(--surface);border:1px solid var(--accent);border-radius:8px;color:var(--text);font-size:13px;outline:none">
+          <div id="sin-resultados" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:180px;overflow-y:auto;position:relative;z-index:10"></div>
+          <div id="sin-seleccionado" style="display:none;margin-top:6px;font-size:12px;color:var(--success)">✅ Datos cargados desde póliza</div>
+        </div>
+
+        <div class="form-group full" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+          <label style="font-size:12px;color:var(--accent)">DATOS DEL SINIESTRO</label>
+        </div>
+        <div class="form-group"><label>Aseguradora *</label>
+          <select name="aseguradora" id="sin-aseguradora" required><option>NRE</option><option>ATM</option></select>
+        </div>
+        <div class="form-group"><label>Tipo de Siniestro *</label>
+          <select name="tipo_siniestro" required>
+            <option>Choque</option><option>Robo total</option><option>Robo parcial</option>
+            <option>Granizo</option><option>Incendio</option><option>Responsabilidad Civil</option>
+            <option>Rotura de vidrios</option><option>Daño parcial</option><option>Otros</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Fecha del Siniestro *</label>
+          <input type="date" name="fecha_siniestro" id="sin-fecha" required>
+        </div>
+        <div class="form-group"><label>Fecha de Denuncia</label>
+          <input type="date" name="fecha_denuncia" id="sin-fecha-den">
+        </div>
+        <div class="form-group"><label>Estado</label>
+          <select name="estado">
+            <option>Abierto</option><option>En proceso</option><option>Cerrado</option><option>Rechazado</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Nº Denuncia Interna</label>
+          <input name="numero_denuncia" placeholder="Auto-generado">
+        </div>
+        {% if session.sucursal == 'ambas' %}
+        <div class="form-group"><label>Sucursal</label>
+          <select name="sucursal"><option value="Roca">Roca</option><option value="Sarmiento">Sarmiento</option></select>
+        </div>
+        {% endif %}
+
+        <div class="form-group full" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+          <label style="font-size:12px;color:var(--accent)">DATOS DEL ASEGURADO / VEHÍCULO</label>
+        </div>
+        <div class="form-group"><label>Nombre Asegurado *</label><input name="nombre_asegurado" id="sin-nombre" required></div>
+        <div class="form-group"><label>DNI / CUIT</label><input name="dni_asegurado" id="sin-dni"></div>
+        <div class="form-group"><label>Nº Póliza</label><input name="npoliza" id="sin-npoliza"></div>
+        <div class="form-group"><label>Patente</label><input name="patente" id="sin-patente" style="text-transform:uppercase"></div>
+        <div class="form-group"><label>Marca / Modelo</label><input name="vehiculo" id="sin-vehiculo"></div>
+        <div class="form-group"><label>Año</label><input name="anio_vehiculo" id="sin-anio"></div>
+
+        <div class="form-group full" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+          <label style="font-size:12px;color:var(--accent)">DESCRIPCIÓN</label>
+        </div>
+        <div class="form-group full"><label>Lugar del Siniestro</label>
+          <input name="lugar_siniestro" placeholder="Av. San Martín y Belgrano...">
+        </div>
+        <div class="form-group full"><label>Descripción del hecho *</label>
+          <textarea name="descripcion" rows="3" required placeholder="Descripción detallada..."></textarea>
+        </div>
+        <div class="form-group full"><label>Daños declarados</label>
+          <textarea name="danos" rows="2" placeholder="Descripción de daños al vehículo..."></textarea>
+        </div>
+
+        <div class="form-group full" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+          <label style="font-size:12px;color:var(--accent)">TERCERO INVOLUCRADO (si corresponde)</label>
+        </div>
+        <div class="form-group"><label>Nombre Tercero</label><input name="tercero_nombre"></div>
+        <div class="form-group"><label>Patente Tercero</label><input name="tercero_patente"></div>
+        <div class="form-group"><label>Tel. Tercero</label><input name="tercero_tel"></div>
+        <div class="form-group"><label>Seguro Tercero</label><input name="tercero_seguro"></div>
+
+        <div class="form-group full"><label>Observaciones / Seguimiento</label>
+          <textarea name="obs" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('siniestro')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">💾 Registrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL VER SINIESTRO -->
+<div class="modal-overlay" id="modal-ver-siniestro">
+  <div class="modal" style="width:680px">
+    <div class="modal-title">📋 Detalle del Siniestro</div>
+    <div id="ver-siniestro-body" style="color:var(--muted);text-align:center;padding:30px">Cargando...</div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeModal('ver-siniestro')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR SINIESTRO -->
+<div class="modal-overlay" id="modal-editar-siniestro">
+  <div class="modal" style="width:720px">
+    <div class="modal-title">✏ Editar Siniestro</div>
+    <form method="POST" id="form-editar-sin" action="">
+      <div class="form-grid">
+        <div class="form-group"><label>Aseguradora</label>
+          <select name="aseguradora" id="es-aseguradora"><option>NRE</option><option>ATM</option></select>
+        </div>
+        <div class="form-group"><label>Tipo</label>
+          <select name="tipo_siniestro" id="es-tipo">
+            <option>Choque</option><option>Robo total</option><option>Robo parcial</option>
+            <option>Granizo</option><option>Incendio</option><option>Responsabilidad Civil</option>
+            <option>Rotura de vidrios</option><option>Daño parcial</option><option>Otros</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Fecha Siniestro</label><input type="date" name="fecha_siniestro" id="es-fecha"></div>
+        <div class="form-group"><label>Fecha Denuncia</label><input type="date" name="fecha_denuncia" id="es-fecha-den"></div>
+        <div class="form-group"><label>Estado</label>
+          <select name="estado" id="es-estado">
+            <option>Abierto</option><option>En proceso</option><option>Cerrado</option><option>Rechazado</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Nº Póliza</label><input name="npoliza" id="es-npoliza"></div>
+        <div class="form-group"><label>Nombre Asegurado</label><input name="nombre_asegurado" id="es-nombre" required></div>
+        <div class="form-group"><label>DNI</label><input name="dni_asegurado" id="es-dni"></div>
+        <div class="form-group"><label>Patente</label><input name="patente" id="es-patente"></div>
+        <div class="form-group"><label>Vehículo</label><input name="vehiculo" id="es-vehiculo"></div>
+        <div class="form-group"><label>Año</label><input name="anio_vehiculo" id="es-anio"></div>
+        <div class="form-group full"><label>Lugar</label><input name="lugar_siniestro" id="es-lugar"></div>
+        <div class="form-group full"><label>Descripción *</label>
+          <textarea name="descripcion" id="es-descripcion" rows="3" required></textarea>
+        </div>
+        <div class="form-group full"><label>Daños</label>
+          <textarea name="danos" id="es-danos" rows="2"></textarea>
+        </div>
+        <div class="form-group"><label>Tercero</label><input name="tercero_nombre" id="es-t-nombre"></div>
+        <div class="form-group"><label>Patente Tercero</label><input name="tercero_patente" id="es-t-patente"></div>
+        <div class="form-group"><label>Tel. Tercero</label><input name="tercero_tel" id="es-t-tel"></div>
+        <div class="form-group"><label>Seguro Tercero</label><input name="tercero_seguro" id="es-t-seguro"></div>
+        <div class="form-group full"><label>Observaciones</label><textarea name="obs" id="es-obs" rows="2"></textarea></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('editar-siniestro')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">💾 Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Fechas hoy
+document.addEventListener('DOMContentLoaded', () => {
+  const hoy = new Date().toISOString().split('T')[0];
+  ['sin-fecha','sin-fecha-den'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !el.value) el.value = hoy;
+  });
+});
+
+// Cambiar estado inline
+function cambiarEstado(id, estado, sel) {
+  fetch('/siniestros/estado/' + id, {
+    method: 'POST',
+    headers: {'Content-Type':'application/x-www-form-urlencoded'},
+    body: 'estado=' + encodeURIComponent(estado)
+  }).then(r => r.json()).then(d => {
+    if (d.ok) {
+      const colores = {
+        'Abierto': ['rgba(232,90,74,.2)','var(--danger)'],
+        'En proceso': ['rgba(232,200,74,.2)','var(--accent)'],
+        'Cerrado': ['rgba(74,232,150,.2)','var(--success)'],
+        'Rechazado': ['rgba(100,100,100,.2)','var(--muted)']
+      };
+      const [bg, color] = colores[estado] || colores['Abierto'];
+      sel.style.background = bg;
+      sel.style.color = color;
+    }
+  });
+}
+
+// Buscar para siniestro
+let sinTimer;
+function buscarParaSiniestro(q) {
+  clearTimeout(sinTimer);
+  const res = document.getElementById('sin-resultados');
+  if (q.length < 2) { res.style.display='none'; return; }
+  sinTimer = setTimeout(() => {
+    fetch('/api/buscar-cliente?q=' + encodeURIComponent(q))
+      .then(r => r.json())
+      .then(data => {
+        if (!data.length) {
+          res.innerHTML='<div style="padding:12px;color:var(--muted);font-size:13px">Sin resultados</div>';
+        } else {
+          res.innerHTML = data.map((c,i) => `
+            <div onclick="seleccionarParaSiniestro(${i}, ${JSON.stringify(JSON.stringify(data))})"
+              data-idx="${i}" data-all='${JSON.stringify(data).replace(/'/g,"&#39;")}'
+              style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border)"
+              onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+              <b>${c.nombre}</b> — ${c.patentes&&c.patentes[0]?c.patentes[0].patente:'—'} — DNI: ${c.dni||'—'}
+            </div>`).join('');
+          // simpler approach
+          res._data = data;
+          res.querySelectorAll('div').forEach((el,i) => {
+            el.onclick = () => selSin(data[i]);
+          });
+        }
+        res.style.display = 'block';
+      });
+  }, 280);
+}
+
+function selSin(c) {
+  const set = (id, v) => { const el=document.getElementById(id); if(el) el.value=v||''; };
+  set('sin-nombre', c.nombre); set('sin-dni', c.dni);
+  document.getElementById('sin-buscar-input').value = c.nombre;
+  if (c.patentes && c.patentes.length > 0) {
+    const p = c.patentes[0];
+    set('sin-patente', p.patente);
+    set('sin-vehiculo', (p.marca||'') + ' ' + (p.modelo||''));
+    set('sin-anio', p.anio);
+  }
+  document.getElementById('sin-resultados').style.display = 'none';
+  document.getElementById('sin-seleccionado').style.display = 'block';
+  const as = document.getElementById('sin-aseguradora');
+  if (as) { /* aseguradora no se puede inferir */ }
+}
+
+// Ver siniestro
+function verSiniestro(id) {
+  openModal('ver-siniestro');
+  fetch('/siniestros/detalle/' + id).then(r=>r.json()).then(s => {
+    const est = {'Abierto':'c-danger','En proceso':'c-accent','Cerrado':'c-success'}[s.estado]||'';
+    document.getElementById('ver-siniestro-body').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:left;margin-bottom:16px">
+        ${fila('Nº Denuncia',s.numero_denuncia)} ${fila('Estado','<span class="'+est+'">'+s.estado+'</span>',true)}
+        ${fila('Fecha Siniestro',s.fecha_siniestro)} ${fila('Fecha Denuncia',s.fecha_denuncia||'—')}
+        ${fila('Aseguradora',s.aseguradora)} ${fila('Tipo',s.tipo_siniestro)}
+        ${fila('Asegurado',s.nombre_asegurado)} ${fila('DNI',s.dni_asegurado||'—')}
+        ${fila('Póliza',s.npoliza||'—')} ${fila('Patente',s.patente||'—')}
+        ${fila('Vehículo',s.vehiculo||'—')} ${fila('Año',s.anio_vehiculo||'—')}
+      </div>
+      ${s.lugar_siniestro ? `<div style="margin-bottom:10px">${filaFull('Lugar',s.lugar_siniestro)}</div>` : ''}
+      <div style="margin-bottom:10px">${filaFull('Descripción',s.descripcion)}</div>
+      ${s.danos ? `<div style="margin-bottom:10px">${filaFull('Daños',s.danos)}</div>` : ''}
+      ${s.tercero_nombre ? `<div style="background:rgba(232,200,74,.05);border:1px solid rgba(232,200,74,.2);border-radius:8px;padding:10px;margin-bottom:10px">
+        <div style="font-size:10px;color:var(--accent);font-weight:700;margin-bottom:6px">TERCERO</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          ${fila('Nombre',s.tercero_nombre)} ${fila('Patente',s.tercero_patente||'—')}
+          ${fila('Teléfono',s.tercero_tel||'—')} ${fila('Seguro',s.tercero_seguro||'—')}
+        </div></div>` : ''}
+      ${s.obs ? `<div>${filaFull('Observaciones',s.obs)}</div>` : ''}
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+        <a href="/siniestros/pdf/${s.id}" class="btn btn-primary btn-sm">📄 PDF</a>
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('ver-siniestro');editarSiniestro(${s.id})">✏ Editar</button>
+      </div>`;
+  });
+}
+
+function fila(l, v, raw=false) {
+  return `<div><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;margin-bottom:2px">${l}</div>
+    <div style="font-size:13px;font-weight:600">${raw ? v : (v||'—')}</div></div>`;
+}
+function filaFull(l, v) {
+  return `<div style="background:var(--surface2);border-radius:8px;padding:10px">
+    <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;margin-bottom:4px">${l}</div>
+    <div style="font-size:13px;line-height:1.5;white-space:pre-wrap">${v||'—'}</div></div>`;
+}
+
+// Editar siniestro
+function editarSiniestro(id) {
+  fetch('/siniestros/detalle/' + id).then(r=>r.json()).then(s => {
+    const set = (id2, v) => { const el=document.getElementById(id2); if(el) el.value=v||''; };
+    set('es-fecha', s.fecha_siniestro); set('es-fecha-den', s.fecha_denuncia);
+    set('es-nombre', s.nombre_asegurado); set('es-dni', s.dni_asegurado);
+    set('es-npoliza', s.npoliza); set('es-patente', s.patente);
+    set('es-vehiculo', s.vehiculo); set('es-anio', s.anio_vehiculo);
+    set('es-lugar', s.lugar_siniestro); set('es-descripcion', s.descripcion);
+    set('es-danos', s.danos); set('es-obs', s.obs);
+    set('es-t-nombre', s.tercero_nombre); set('es-t-patente', s.tercero_patente);
+    set('es-t-tel', s.tercero_tel); set('es-t-seguro', s.tercero_seguro);
+    const ss = (id2, v) => { const el=document.getElementById(id2); if(!el||!v) return;
+      for(let o of el.options){if(o.value===v||o.text===v){el.value=o.value;break;}} };
+    ss('es-aseguradora', s.aseguradora); ss('es-tipo', s.tipo_siniestro);
+    ss('es-estado', s.estado);
+    document.getElementById('form-editar-sin').action = '/siniestros/editar/' + id;
+    openModal('editar-siniestro');
+  });
+}
+</script>
+{% endblock %}

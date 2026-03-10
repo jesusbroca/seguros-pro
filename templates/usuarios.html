@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Usuarios{% endblock %}{% block page_title %}Gestión de Usuarios{% endblock %}
+{% block topbar_actions %}<button class="btn btn-primary" onclick="openModal('usuario')">+ Nuevo Usuario</button>{% endblock %}
+{% block content %}
+<div class="table-wrap" style="margin-bottom:24px">
+  <div class="table-header"><div class="table-title">Usuarios del sistema</div></div>
+  <table><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Sucursal</th><th>Creado</th><th></th></tr></thead>
+  <tbody>
+    {% for u in usuarios %}
+    <tr>
+      <td><strong>{{ u.nombre }}</strong></td>
+      <td>{{ u.email }}</td>
+      <td><span class="badge {{ 'badge-admin' if u.rol=='admin' else 'badge-ok' }}">{{ u.rol }}</span></td>
+      <td><span class="badge badge-{{ 'ambas' if u.sucursal=='ambas' else u.sucursal.lower() }}">{{ u.sucursal }}</span></td>
+      <td style="color:var(--muted);font-size:12px">{{ u.creado[:10] if u.creado else '—' }}</td>
+      <td>
+        {% if u.id != session.user_id %}
+        <form method="POST" action="{{ url_for('eliminar_usuario', uid=u.id) }}" style="display:inline" onsubmit="return confirm('¿Eliminar?')">
+          <button class="btn btn-danger btn-sm">Eliminar</button>
+        </form>
+        {% else %}<span style="color:var(--muted);font-size:12px">Sos vos</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody></table>
+</div>
+<div class="card" style="max-width:420px">
+  <div class="card-title">🔐 Cambiar mi contraseña</div>
+  <form method="POST" action="{{ url_for('cambiar_password') }}" style="display:flex;flex-direction:column;gap:12px">
+    <div class="form-group"><label>Contraseña actual</label><input type="password" name="actual" required></div>
+    <div class="form-group"><label>Nueva contraseña</label><input type="password" name="nueva" required></div>
+    <div class="form-group"><label>Repetir nueva</label><input type="password" name="repetir" required></div>
+    <button type="submit" class="btn btn-primary">Cambiar contraseña</button>
+  </form>
+</div>
+{% endblock %}
+{% block modals %}
+<div class="modal-overlay" id="modal-usuario">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title">👤 Nuevo Usuario</div>
+    <form method="POST" action="{{ url_for('nuevo_usuario') }}">
+      <div class="form-grid">
+        <div class="form-group full"><label>Nombre completo</label><input name="nombre" required></div>
+        <div class="form-group full"><label>Email</label><input name="email" type="email" required></div>
+        <div class="form-group"><label>Contraseña inicial</label><input name="password" type="password" required></div>
+        <div class="form-group"><label>Rol</label>
+          <select name="rol"><option value="operador">Operador</option><option value="admin">Administrador</option></select>
+        </div>
+        <div class="form-group full"><label>Sucursal</label>
+          <select name="sucursal">
+            <option value="Roca">Solo Roca</option>
+            <option value="Sarmiento">Solo Sarmiento</option>
+            <option value="ambas">Ambas (Admin)</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('usuario')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Crear usuario</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

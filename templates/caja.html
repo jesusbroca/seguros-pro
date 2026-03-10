@@ -1,0 +1,228 @@
+{% extends 'base.html' %}
+{% block title %}Caja{% endblock %}
+{% block page_title %}💰 Caja{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('exportar_cobros') }}" class="btn btn-ghost">⬇ CSV</a>
+  <button class="btn btn-success" onclick="openModal('mov-ingreso')">+ Ingreso</button>
+  <button class="btn btn-danger" onclick="openModal('mov-gasto')">- Gasto</button>
+  <button class="btn btn-ghost" onclick="openModal('mov-retiro')">↩ Retiro</button>
+{% endblock %}
+
+{% block content %}
+<!-- Stats del mes -->
+<div class="stats-row" style="grid-template-columns:repeat(5,1fr)">
+  <div class="stat-card">
+    <div class="stat-label">Cobros (pólizas)</div>
+    <div class="stat-value c-success">{{ fmt_peso(cobros_poliza) }}</div>
+    <div class="stat-sub">Emisión del mes</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Ingresos Totales</div>
+    <div class="stat-value c-success">{{ fmt_peso(ingresos_mes) }}</div>
+    <div class="stat-sub">Cobros + ingresos</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Gastos</div>
+    <div class="stat-value c-danger">{{ fmt_peso(gastos_mes) }}</div>
+    <div class="stat-sub">Alquiler, sueldos…</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Retiros</div>
+    <div class="stat-value" style="color:var(--accent)">{{ fmt_peso(retiros_mes) }}</div>
+    <div class="stat-sub">Del mes</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Balance</div>
+    <div class="stat-value {% if balance_mes >= 0 %}c-success{% else %}c-danger{% endif %}">
+      {{ fmt_peso(balance_mes) }}
+    </div>
+    <div class="stat-sub">Ingresos - Gastos - Retiros</div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs" style="margin-bottom:16px">
+  <a href="?tab=todos" class="tab {% if tab=='todos' %}active{% endif %}">Todos</a>
+  <a href="?tab=cobros" class="tab {% if tab=='cobros' %}active{% endif %}">💙 Cobros pólizas</a>
+  <a href="?tab=ingresos" class="tab {% if tab=='ingresos' %}active{% endif %}">🟢 Ingresos</a>
+  <a href="?tab=gastos" class="tab {% if tab=='gastos' %}active{% endif %}">🔴 Gastos</a>
+  <a href="?tab=retiros" class="tab {% if tab=='retiros' %}active{% endif %}">🟡 Retiros</a>
+</div>
+
+<!-- Tabla de movimientos -->
+<div class="table-wrap">
+  <div class="table-header"><div class="table-title">Movimientos</div></div>
+  <table>
+    <thead><tr>
+      <th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Cliente / Origen</th>
+      <th>Aseg.</th><th>Método</th><th>Monto</th><th></th>
+    </tr></thead>
+    <tbody>
+    {% for m in lista %}
+    {% set tipo = m.tipo_movimiento or 'cobro' %}
+    <tr>
+      <td style="white-space:nowrap">{{ fmt_fecha(m.fecha) }}</td>
+      <td>
+        {% if tipo == 'cobro' %}
+          <span class="badge badge-ok" style="background:rgba(74,232,150,.15);color:var(--success)">💙 Cobro</span>
+        {% elif tipo == 'ingreso' %}
+          <span class="badge badge-ok">🟢 Ingreso</span>
+        {% elif tipo == 'gasto' %}
+          <span class="badge badge-exp">🔴 Gasto</span>
+        {% elif tipo == 'retiro' %}
+          <span class="badge badge-warn">🟡 Retiro</span>
+        {% endif %}
+      </td>
+      <td style="font-size:12px;max-width:200px">{{ m.concepto or '—' }}</td>
+      <td>
+        <strong>{{ m.cliente }}</strong>
+        {% if m.notas %}<br><span style="font-size:11px;color:var(--muted)">{{ m.notas[:60] }}{% if m.notas|length > 60 %}…{% endif %}</span>{% endif %}
+      </td>
+      <td>{% if m.aseguradora %}<span class="badge badge-{{ 'nre' if 'NRE' in m.aseguradora else 'atm' }}">{{ m.aseguradora }}</span>{% else %}—{% endif %}</td>
+      <td style="font-size:12px">{{ m.metodo or '—' }}</td>
+      <td style="font-family:'Syne',sans-serif;font-weight:700;
+        color:{% if tipo in ('cobro','ingreso') %}var(--success){% elif tipo=='gasto' %}var(--danger){% else %}var(--accent){% endif %}">
+        {% if tipo in ('gasto','retiro') %}−{% endif %}{{ fmt_peso(m.monto) }}
+      </td>
+      <td>
+        <form method="POST" action="{{ url_for('eliminar_cobro', cid=m.id) }}" style="display:inline"
+          onsubmit="return confirm('¿Eliminar este movimiento?')">
+          <button class="btn btn-ghost btn-sm">🗑</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8"><div class="empty"><div class="empty-icon">💰</div><div class="empty-text">Sin movimientos</div></div></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- MODAL INGRESO -->
+<div class="modal-overlay" id="modal-mov-ingreso">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title" style="color:var(--success)">🟢 Registrar Ingreso</div>
+    <form method="POST" action="/caja/movimiento">
+      <input type="hidden" name="tipo_movimiento" value="ingreso">
+      <div class="form-grid">
+        <div class="form-group"><label>Fecha *</label><input name="fecha" type="date" class="date-hoy" required></div>
+        <div class="form-group"><label>Método</label>
+          <select name="metodo"><option>Efectivo</option><option>Transferencia</option><option>Cheque</option></select>
+        </div>
+        <div class="form-group full"><label>Concepto *</label>
+          <input name="concepto" required placeholder="Ej: Comisión cobrada, otro ingreso...">
+        </div>
+        <div class="form-group full"><label>Origen / Descripción</label>
+          <input name="cliente" placeholder="Quién o qué lo generó">
+        </div>
+        <div class="form-group"><label>Aseguradora</label>
+          <select name="aseguradora"><option value="">—</option><option>NRE</option><option>ATM</option></select>
+        </div>
+        {% if session.sucursal == 'ambas' %}
+        <div class="form-group"><label>Sucursal</label>
+          <select name="sucursal"><option>Roca</option><option>Sarmiento</option></select>
+        </div>
+        {% endif %}
+        <div class="form-group full"><label>Monto ($) *</label>
+          <input name="monto" type="number" step="0.01" required></div>
+        <div class="form-group full"><label>Notas</label><textarea name="notas" rows="2"></textarea></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('mov-ingreso')">Cancelar</button>
+        <button type="submit" class="btn btn-success">Registrar Ingreso</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL GASTO -->
+<div class="modal-overlay" id="modal-mov-gasto">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title" style="color:var(--danger)">🔴 Registrar Gasto</div>
+    <form method="POST" action="/caja/movimiento">
+      <input type="hidden" name="tipo_movimiento" value="gasto">
+      <div class="form-grid">
+        <div class="form-group"><label>Fecha *</label><input name="fecha" type="date" class="date-hoy" required></div>
+        <div class="form-group"><label>Método</label>
+          <select name="metodo"><option>Efectivo</option><option>Transferencia</option><option>Cheque</option><option>Débito automático</option></select>
+        </div>
+        <div class="form-group full"><label>Categoría *</label>
+          <select name="concepto" required>
+            <option value="">— Seleccionar —</option>
+            <option>Alquiler</option>
+            <option>Sueldo / Personal</option>
+            <option>Luz / Agua / Gas</option>
+            <option>Internet / Teléfono</option>
+            <option>Impuestos / Tasas</option>
+            <option>Mantenimiento / Reparaciones</option>
+            <option>Materiales / Insumos</option>
+            <option>Honorarios profesionales</option>
+            <option>Publicidad / Marketing</option>
+            <option>Otro gasto</option>
+          </select>
+        </div>
+        <div class="form-group full"><label>Detalle / Proveedor</label>
+          <input name="cliente" placeholder="Ej: Inmobiliaria García, EPEC...">
+        </div>
+        {% if session.sucursal == 'ambas' %}
+        <div class="form-group full"><label>Sucursal</label>
+          <select name="sucursal"><option>Roca</option><option>Sarmiento</option></select>
+        </div>
+        {% endif %}
+        <div class="form-group full"><label>Monto ($) *</label>
+          <input name="monto" type="number" step="0.01" required></div>
+        <div class="form-group full"><label>Notas</label><textarea name="notas" rows="2"></textarea></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('mov-gasto')">Cancelar</button>
+        <button type="submit" class="btn btn-danger">Registrar Gasto</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL RETIRO -->
+<div class="modal-overlay" id="modal-mov-retiro">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title" style="color:var(--accent)">🟡 Registrar Retiro</div>
+    <form method="POST" action="/caja/movimiento">
+      <input type="hidden" name="tipo_movimiento" value="retiro">
+      <div class="form-grid">
+        <div class="form-group"><label>Fecha *</label><input name="fecha" type="date" class="date-hoy" required></div>
+        <div class="form-group"><label>Método</label>
+          <select name="metodo"><option>Efectivo</option><option>Transferencia</option></select>
+        </div>
+        <div class="form-group full"><label>Concepto</label>
+          <input name="concepto" placeholder="Ej: Retiro de utilidades, adelanto...">
+        </div>
+        <div class="form-group full"><label>Persona / Beneficiario</label>
+          <input name="cliente" placeholder="Nombre del socio o beneficiario">
+        </div>
+        {% if session.sucursal == 'ambas' %}
+        <div class="form-group full"><label>Sucursal</label>
+          <select name="sucursal"><option>Roca</option><option>Sarmiento</option></select>
+        </div>
+        {% endif %}
+        <div class="form-group full"><label>Monto ($) *</label>
+          <input name="monto" type="number" step="0.01" required></div>
+        <div class="form-group full"><label>Notas</label><textarea name="notas" rows="2"></textarea></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('mov-retiro')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Registrar Retiro</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const hoy = new Date().toISOString().split('T')[0];
+  document.querySelectorAll('.date-hoy').forEach(el => { if (!el.value) el.value = hoy; });
+});
+</script>
+{% endblock %}

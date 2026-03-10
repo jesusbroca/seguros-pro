@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}SegurosPro{% endblock %}</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d0f14;--surface:#161920;--surface2:#1e2230;--border:#2a2f3e;--accent:#e8c84a;--accent2:#4a9ee8;--danger:#e85a4a;--success:#4ae896;--text:#eef0f5;--muted:#6b7280;--roca:#9b59b6;--sarmiento:#e67e22}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.sidebar{position:fixed;left:0;top:0;width:220px;height:100vh;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:100;overflow-y:auto}
+.logo{padding:20px;border-bottom:1px solid var(--border);font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--accent)}
+.logo span{color:var(--text);font-weight:400}
+.logo-sub{font-size:10px;color:var(--muted);font-weight:400;margin-top:2px}
+.nav{padding:12px;flex:1}
+.nav-section{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;padding:8px 8px 4px;font-weight:600}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--muted);text-decoration:none;transition:all .2s;margin-bottom:2px;font-weight:500}
+.nav-item:hover{background:var(--surface2);color:var(--text)}
+.nav-item.active{background:var(--accent);color:#0d0f14;font-weight:700}
+.nav-icon{font-size:15px;width:18px;text-align:center}
+.sidebar-bottom{padding:14px;border-top:1px solid var(--border)}
+.user-badge{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.user-avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;color:#0d0f14;flex-shrink:0}
+.user-name{font-weight:600;font-size:13px;color:var(--text)}
+.user-meta{font-size:11px;color:var(--muted)}
+.suc-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-top:2px}
+.suc-roca{background:rgba(155,89,182,.2);color:#c39bd3}
+.suc-sarmiento{background:rgba(230,126,34,.2);color:#f0a96b}
+.suc-ambas{background:rgba(74,158,232,.2);color:var(--accent2)}
+.main{margin-left:220px;min-height:100vh}
+.topbar{padding:14px 28px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;gap:12px}
+.page-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;white-space:nowrap}
+.topbar-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{padding:7px 16px;border-radius:8px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;transition:all .2s;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+.btn-primary{background:var(--accent);color:#0d0f14}
+.btn-primary:hover{background:#f0d060;transform:translateY(-1px)}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+.btn-danger{background:var(--danger);color:white}
+.btn-success{background:var(--success);color:#0d0f14}
+.btn-sm{padding:4px 11px;font-size:12px}
+.content{padding:24px 28px}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;transition:border-color .2s}
+.stat-card:hover{border-color:var(--accent)}
+.stat-label{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.stat-value{font-family:'Syne',sans-serif;font-size:26px;font-weight:800}
+.stat-sub{font-size:11px;color:var(--muted);margin-top:3px}
+.c-accent{color:var(--accent)}.c-danger{color:var(--danger)}.c-success{color:var(--success)}.c-blue{color:var(--accent2)}
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px}
+.table-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.table-title{font-family:'Syne',sans-serif;font-weight:700;font-size:14px}
+.search-form{display:flex;gap:6px;align-items:center}
+.search-box{padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;min-width:180px}
+.search-box:focus{border-color:var(--accent)}
+table{width:100%;border-collapse:collapse}
+th{padding:10px 14px;text-align:left;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);background:var(--surface2);white-space:nowrap}
+td{padding:10px 14px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.badge-nre{background:rgba(26,42,74,.4);color:#7aa0d4;border:1px solid rgba(26,42,74,.6)}
+.badge-atm{background:rgba(196,30,30,.15);color:#e57373;border:1px solid rgba(196,30,30,.3)}
+.badge-ok{background:rgba(74,232,150,.12);color:var(--success)}
+.badge-warn{background:rgba(232,200,74,.12);color:var(--accent)}
+.badge-exp{background:rgba(232,90,74,.12);color:var(--danger)}
+.badge-admin{background:rgba(74,158,232,.12);color:var(--accent2)}
+.badge-roca{background:rgba(155,89,182,.15);color:#c39bd3}
+.badge-sarmiento{background:rgba(230,126,34,.15);color:#f0a96b}
+.action-btns{display:flex;gap:5px;flex-wrap:wrap}
+.alert-box{border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:13px}
+.alert-ok{background:rgba(74,232,150,.08);border:1px solid rgba(74,232,150,.25)}
+.alert-error{background:rgba(232,90,74,.08);border:1px solid rgba(232,90,74,.25)}
+.alert-warn{background:rgba(232,200,74,.08);border:1px solid rgba(232,200,74,.25)}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;width:640px;max-width:96vw;max-height:92vh;overflow-y:auto}
+.modal-title{font-family:'Syne',sans-serif;font-size:17px;font-weight:700;margin-bottom:18px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group.full{grid-column:span 2}
+.form-group.third{grid-column:span 1}
+label{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+input,select,textarea{padding:8px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;transition:border-color .2s;width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+select option{background:var(--surface2)}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}
+.empty{text-align:center;padding:44px;color:var(--muted)}
+.empty-icon{font-size:36px;margin-bottom:10px}
+.empty-text{font-size:14px}
+.tabs{display:flex;gap:0;margin-bottom:18px;border-bottom:1px solid var(--border)}
+.tab{padding:9px 18px;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;text-decoration:none;display:inline-block;transition:all .2s;margin-bottom:-1px}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.seg-selector{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.seg-btn{padding:8px 16px;border-radius:8px;border:2px solid var(--border);background:transparent;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:var(--muted);text-decoration:none;transition:all .2s}
+.seg-btn.active-all,.seg-btn:hover{border-color:var(--accent);color:var(--accent)}
+.seg-btn.active-nre{border-color:#7aa0d4;color:#7aa0d4;background:rgba(26,42,74,.2)}
+.seg-btn.active-atm{border-color:#e57373;color:#e57373;background:rgba(196,30,30,.1)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px}
+.card-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:14px}
+.row-item{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
+.row-item:last-child{border-bottom:none}
+.row-label{color:var(--muted)}
+.row-value{font-weight:600;font-family:'Syne',sans-serif}
+.docs-btns{display:flex;gap:6px;flex-wrap:wrap}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.content{animation:fadeIn .2s ease}
+</style>
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+<div class="sidebar">
+  <div class="logo">Seguros<span>Pro</span><div class="logo-sub">Sistema de Gestión</div></div>
+  <nav class="nav">
+    <div class="nav-section">Principal</div>
+    <a class="nav-item {% if request.endpoint=='index' %}active{% endif %}" href="{{ url_for('index') }}"><span class="nav-icon">📊</span>Dashboard</a>
+    <a class="nav-item {% if request.endpoint=='polizas' %}active{% endif %}" href="{{ url_for('polizas') }}"><span class="nav-icon">📋</span>Pólizas</a>
+    <a class="nav-item {% if request.endpoint=='clientes' %}active{% endif %}" href="{{ url_for('clientes') }}"><span class="nav-icon">👥</span>Clientes</a>
+    <div class="nav-section">Gestión</div>
+    <a class="nav-item {% if request.endpoint=='vencimientos' %}active{% endif %}" href="{{ url_for('vencimientos') }}"><span class="nav-icon">🔔</span>Vencimientos</a>
+    <a class="nav-item {% if request.endpoint=='caja' %}active{% endif %}" href="{{ url_for('caja') }}"><span class="nav-icon">💰</span>Caja</a>
+    <a class="nav-item {% if request.endpoint=='siniestros' %}active{% endif %}" href="{{ url_for('siniestros') }}"><span class="nav-icon">🚨</span>Siniestros</a>
+    {% if session.rol == 'admin' %}
+    <div class="nav-section">Admin</div>
+    <a class="nav-item {% if request.endpoint=='usuarios' %}active{% endif %}" href="{{ url_for('usuarios') }}"><span class="nav-icon">⚙</span>Usuarios</a>
+    {% endif %}
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="user-badge">
+      <div class="user-avatar">{{ session.nombre[0].upper() if session.nombre else 'U' }}</div>
+      <div>
+        <div class="user-name">{{ session.nombre }}</div>
+        <div class="user-meta">{{ session.rol }}</div>
+        {% set suc = session.sucursal %}
+        <span class="suc-badge suc-{{ 'ambas' if suc=='ambas' else suc.lower() }}">
+          {{ 'Ambas sucursales' if suc=='ambas' else suc }}
+        </span>
+      </div>
+    </div>
+    <a href="{{ url_for('logout') }}" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center">Cerrar sesión</a>
+  </div>
+</div>
+<div class="main">
+  <div class="topbar">
+    <div class="page-title">{% block page_title %}{% endblock %}</div>
+    <div class="topbar-actions">{% block topbar_actions %}{% endblock %}</div>
+  </div>
+  <div class="content">
+    {% for cat, msg in get_flashed_messages(with_categories=true) %}
+    <div class="alert-box alert-{{ cat }}">
+      {{ '✅' if cat=='ok' else ('⚠' if cat=='warn' else '❌') }} {{ msg }}
+    </div>
+    {% endfor %}
+    {% block content %}{% endblock %}
+  </div>
+</div>
+{% block modals %}{% endblock %}
+<script>
+function openModal(id){document.getElementById('modal-'+id).classList.add('open')}
+function closeModal(id){document.getElementById('modal-'+id).classList.remove('open')}
+document.querySelectorAll('.modal-overlay').forEach(m=>{
+  m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')})
+})
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
