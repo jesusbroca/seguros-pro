@@ -1,0 +1,167 @@
+<div class="modal-overlay" id="modal-poliza">
+  <div class="modal" style="width:720px">
+    <div class="modal-title">📋 Nueva Póliza</div>
+    <form method="POST" action="/polizas/nueva" id="form-poliza">
+      <div class="form-grid">
+
+        <div class="form-group full" style="background:var(--surface2);border-radius:8px;padding:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label>Aseguradora *</label>
+            <select name="aseguradora" required>
+              <option>NRE</option>
+              <option>ATM</option>
+            </select>
+          </div>
+          {% if session.sucursal == 'ambas' %}
+          <div class="form-group">
+            <label>Sucursal *</label>
+            <select name="sucursal" required>
+              <option value="Roca">Roca</option>
+              <option value="Sarmiento">Sarmiento</option>
+            </select>
+          </div>
+          {% endif %}
+          <div class="form-group">
+            <label>Modalidad *</label>
+            <select name="modalidad" id="sel-modalidad" onchange="actualizarFechas()">
+              <option value="trimestral_unico">Trimestral — Pago único</option>
+              <option value="trimestral_mensual">Trimestral — Pago mensual</option>
+              <option value="bimestral_unico">Bimestral — Pago único</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group full" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+          <label style="font-size:12px;color:var(--accent);margin-bottom:6px">DATOS DEL ASEGURADO</label>
+        </div>
+
+        <!-- NOMBRE CON LUPA -->
+        <div class="form-group" style="position:relative">
+          <label>Nombre completo *</label>
+          <div style="display:flex;gap:0">
+            <input name="nombre" id="f-nombre" placeholder="Juan Pérez" required
+              style="border-radius:8px 0 0 8px;flex:1">
+            <button type="button" onclick="abrirBuscador()"
+              style="padding:0 12px;background:var(--accent);border:none;border-radius:0 8px 8px 0;cursor:pointer;font-size:15px;color:#0d0f14"
+              title="Buscar cliente existente">🔍</button>
+          </div>
+        </div>
+
+        <div class="form-group"><label>DNI / CUIT</label><input name="dni" id="f-dni" placeholder="12345678"></div>
+        <div class="form-group"><label>Domicilio</label><input name="domicilio" id="f-domicilio" placeholder="Av. San Martín 123"></div>
+        <div class="form-group"><label>CP</label><input name="cp" id="f-cp" placeholder="4000"></div>
+        <div class="form-group"><label>Localidad</label><input name="localidad" id="f-localidad" value="San Miguel de Tucuman"></div>
+        <div class="form-group"><label>Provincia</label><input name="provincia" id="f-provincia" value="Tucuman"></div>
+        <div class="form-group"><label>Cond. IVA</label>
+          <select name="cond_iva" id="f-cond_iva">
+            <option>CONSUMIDOR FINAL</option>
+            <option>RESPONSABLE INSCRIPTO</option>
+            <option>MONOTRIBUTISTA</option>
+            <option>EXENTO</option>
+          </select>
+        </div>
+
+        <div class="form-group full" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+          <label style="font-size:12px;color:var(--accent);margin-bottom:6px">DATOS DEL VEHÍCULO</label>
+        </div>
+        <div class="form-group"><label>Marca</label><input name="marca" id="f-marca" placeholder="CHEVROLET"></div>
+        <div class="form-group"><label>Modelo</label><input name="modelo" id="f-modelo" placeholder="COBALT 1.8 LT"></div>
+        <div class="form-group"><label>Año</label><input name="anio" id="f-anio" placeholder="2020"></div>
+        <div class="form-group"><label>Patente</label><input name="patente" id="f-patente" placeholder="AB123CD" style="text-transform:uppercase"></div>
+        <div class="form-group"><label>Motor</label><input name="motor" id="f-motor" placeholder="ABC12345"></div>
+        <div class="form-group"><label>Chasis</label><input name="chasis" id="f-chasis" placeholder="9BGJD..."></div>
+        <div class="form-group"><label>Tipo de Vehículo</label>
+          <select name="tipo_vehiculo" id="f-tipo_vehiculo">
+            <option>Automovil Nacional</option>
+            <option>Automovil Importado</option>
+            <option>PICK UP Y JEEP</option>
+            <option>Camioneta</option>
+            <option>Moto</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Carrocería</label>
+          <select name="carroceria" id="f-carroceria">
+            <option>Sedan</option>
+            <option>Hatchback</option>
+            <option>SUV</option>
+            <option>PICK-UP</option>
+            <option>Coupe</option>
+            <option>Rural</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Uso</label>
+          <select name="uso" id="f-uso">
+            <option>PARTICULAR</option>
+            <option>TAXI</option>
+            <option>REMIS</option>
+            <option>COMERCIAL</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Origen</label>
+          <select name="origen" id="f-origen">
+            <option>Nacional</option>
+            <option>Importado</option>
+          </select>
+        </div>
+
+        <div class="form-group full" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+          <label style="font-size:12px;color:var(--accent);margin-bottom:6px">VIGENCIA Y PAGO</label>
+        </div>
+        <div class="form-group">
+          <label>Nº Póliza</label>
+          <div style="display:flex;gap:6px">
+            <input name="npoliza" id="f-npoliza" placeholder="Auto-generado">
+            <button type="button" onclick="genNPoliza()" class="btn btn-ghost btn-sm">Gen</button>
+          </div>
+        </div>
+        <div class="form-group"><label>Fecha inicio *</label>
+          <input type="date" name="fecha_inicio" id="f-fecha_inicio" required
+            onchange="actualizarFechas()">
+        </div>
+        <div class="form-group"><label>Fecha vencimiento</label>
+          <input type="date" name="fecha_venc" id="f-fecha_venc">
+        </div>
+        <div class="form-group"><label>Prima ($)</label><input type="number" step="0.01" name="prima" id="f-prima" placeholder="0.00"></div>
+        <div class="form-group"><label>Rec. Financiero ($)</label><input type="number" step="0.01" name="rec_financiero" placeholder="0.00"></div>
+        <div class="form-group"><label>IVA ($)</label><input type="number" step="0.01" name="iva" placeholder="0.00"></div>
+        <div class="form-group"><label>Otros Imp. ($)</label><input type="number" step="0.01" name="otros_impuestos" placeholder="0.00"></div>
+        <div class="form-group"><label>Premio / Total ($)</label><input type="number" step="0.01" name="premio" placeholder="0.00"></div>
+        <div class="form-group"><label>Forma de pago</label>
+          <select name="forma_pago">
+            <option>Efectivo</option>
+            <option>Transferencia</option>
+            <option>Tarjeta Débito</option>
+            <option>Tarjeta Crédito</option>
+            <option>Cheque</option>
+          </select>
+        </div>
+        <div class="form-group full"><label>Observaciones</label>
+          <textarea name="obs" rows="2" placeholder="Notas adicionales..."></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('poliza')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">💾 Guardar Póliza</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL BUSCADOR DE CLIENTES -->
+<div class="modal-overlay" id="modal-buscador" style="z-index:300">
+  <div class="modal" style="width:660px;max-height:80vh">
+    <div class="modal-title">🔍 Buscar Cliente</div>
+    <div style="margin-bottom:14px">
+      <input type="text" id="buscar-input"
+        placeholder="Nombre, DNI o Patente..."
+        oninput="buscarCliente(this.value)"
+        style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;color:var(--text);font-size:14px;outline:none">
+    </div>
+    <div id="buscar-resultados-modal" style="max-height:50vh;overflow-y:auto">
+      <div style="text-align:center;padding:30px;color:var(--muted)">Escribí al menos 2 caracteres para buscar</div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="cerrarBuscador()">Cerrar</button>
+    </div>
+  </div>
+</div>

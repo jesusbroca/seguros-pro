@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — SegurosPro{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block topbar_actions %}
+  {% if session.sucursal == 'ambas' %}
+  <a href="{{ url_for('index') }}?suc=Roca" class="btn btn-ghost btn-sm">🏢 Roca</a>
+  <a href="{{ url_for('index') }}?suc=Sarmiento" class="btn btn-ghost btn-sm">🏢 Sarmiento</a>
+  {% endif %}
+  <a href="{{ url_for('exportar_polizas') }}" class="btn btn-ghost">⬇ CSV</a>
+  <button class="btn btn-primary" onclick="openModal('poliza')">+ Nueva Póliza</button>
+{% endblock %}
+{% block content %}
+<div class="stats-row">
+  <div class="stat-card"><div class="stat-label">Pólizas Activas</div>
+    <div class="stat-value c-accent">{{ activas }}</div><div class="stat-sub">Total vigentes</div></div>
+  <div class="stat-card"><div class="stat-label">Vencen en 30 días</div>
+    <div class="stat-value c-danger">{{ vencen }}</div><div class="stat-sub">Requieren renovación</div></div>
+  <div class="stat-card"><div class="stat-label">Cobros del Mes</div>
+    <div class="stat-value c-success">{{ fmt_peso(total_mes) }}</div><div class="stat-sub">Mes actual</div></div>
+  <div class="stat-card"><div class="stat-label">Clientes</div>
+    <div class="stat-value c-blue">{{ clientes }}</div><div class="stat-sub">Registrados</div></div>
+</div>
+{% if vencen > 0 %}
+<div class="alert-box alert-warn">
+  ⚠ <strong>{{ vencen }} póliza{{ 's' if vencen>1 }} vence{{ 'n' if vencen>1 }} en los próximos 30 días.</strong>
+  <a href="{{ url_for('vencimientos') }}" style="color:var(--accent);margin-left:8px">Ver →</a>
+</div>
+{% endif %}
+<div class="table-wrap">
+  <div class="table-header"><div class="table-title">Pólizas Recientes</div></div>
+  <table><thead><tr><th>Cliente</th><th>Aseguradora</th><th>Sucursal</th><th>Vehículo / Patente</th><th>Vencimiento</th><th>Premio</th><th>Estado</th><th>Documentos</th></tr></thead>
+  <tbody>
+    {% for p in polizas %}{% set lbl,cls=estado(p.fecha_venc) %}
+    <tr>
+      <td><strong>{{ p.nombre }}</strong><br><span style="color:var(--muted);font-size:11px">{{ p.dni or '' }}</span></td>
+      <td><span class="badge badge-{{ 'nre' if 'NRE' in p.aseguradora else 'atm' }}">{{ p.aseguradora }}</span></td>
+      <td><span class="badge badge-{{ p.sucursal.lower() }}">{{ p.sucursal }}</span></td>
+      <td>{{ p.marca or '' }} {{ p.modelo or '' }}<br><span style="font-family:monospace;font-size:11px">{{ p.patente or '—' }}</span></td>
+      <td>{{ fmt_fecha(p.fecha_venc) }}</td>
+      <td style="font-family:'Syne',sans-serif;font-weight:700">{{ fmt_peso(p.premio) }}</td>
+      <td><span class="badge badge-{{ cls }}">{{ lbl }}</span></td>
+      <td>
+        {% from '_docs_btns.html' import docs_btns %}{{ docs_btns(p) }}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8"><div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Cargá tu primera póliza</div></div></td></tr>
+    {% endfor %}
+  </tbody></table>
+</div>
+{% endblock %}
+{% block modals %}{% include '_modal_poliza.html' %}{% endblock %}

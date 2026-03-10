@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Vencimientos{% endblock %}{% block page_title %}Vencimientos{% endblock %}
+{% block topbar_actions %}<button class="btn btn-primary" onclick="openModal('poliza')">+ Nueva Póliza</button>{% endblock %}
+{% block content %}
+<div class="tabs">
+  <a href="?tab=proximos" class="tab {% if tab=='proximos' %}active{% endif %}">⚠ Próximos 30 días ({{ proximas|length }})</a>
+  <a href="?tab=vencidos" class="tab {% if tab=='vencidos' %}active{% endif %}">🔴 Vencidas ({{ vencidas|length }})</a>
+  <a href="?tab=todas" class="tab {% if tab=='todas' %}active{% endif %}">📅 Todas ({{ todas|length }})</a>
+</div>
+
+{% if tab == 'proximos' %}
+<div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Aseg.</th><th>Suc.</th><th>Vehículo</th><th>Vencimiento</th><th>Días</th><th>Documentos</th></tr></thead><tbody>
+  {% for p in proximas %}
+  <tr>
+    <td><strong>{{ p.nombre }}</strong></td>
+    <td><span class="badge badge-{{ 'nre' if 'NRE' in p.aseguradora else 'atm' }}">{{ p.aseguradora }}</span></td>
+    <td><span class="badge badge-{{ p.sucursal.lower() }}">{{ p.sucursal }}</span></td>
+    <td>{{ p.marca or '' }} {{ p.modelo or '' }} <span style="font-family:monospace;font-size:11px">({{ p.patente or '—' }})</span></td>
+    <td>{{ fmt_fecha(p.fecha_venc) }}</td>
+    <td><span class="badge badge-warn">⚠ {{ dias_venc(p.fecha_venc) }}d</span></td>
+    <td>{% from '_docs_btns.html' import docs_btns %}{{ docs_btns(p) }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7"><div class="empty"><div class="empty-icon">✅</div><div class="empty-text">Sin vencimientos próximos</div></div></td></tr>
+  {% endfor %}
+</tbody></table></div>
+
+{% elif tab == 'vencidos' %}
+<div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Aseg.</th><th>Suc.</th><th>Vehículo</th><th>Venció</th><th>Días vencida</th><th></th></tr></thead><tbody>
+  {% for p in vencidas %}
+  <tr>
+    <td><strong>{{ p.nombre }}</strong></td>
+    <td><span class="badge badge-{{ 'nre' if 'NRE' in p.aseguradora else 'atm' }}">{{ p.aseguradora }}</span></td>
+    <td><span class="badge badge-{{ p.sucursal.lower() }}">{{ p.sucursal }}</span></td>
+    <td>{{ p.marca or '' }} {{ p.modelo or '' }}</td>
+    <td>{{ fmt_fecha(p.fecha_venc) }}</td>
+    <td><span class="badge badge-exp">🔴 {{ dias_venc(p.fecha_venc)|abs }}d</span></td>
+    <td>
+      <form method="POST" action="{{ url_for('eliminar_poliza', pid=p.id) }}" style="display:inline" onsubmit="return confirm('¿Archivar?')">
+        <button class="btn btn-ghost btn-sm">Archivar</button>
+      </form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7"><div class="empty"><div class="empty-icon">✅</div><div class="empty-text">Sin pólizas vencidas</div></div></td></tr>
+  {% endfor %}
+</tbody></table></div>
+
+{% else %}
+<div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Aseg.</th><th>Suc.</th><th>Vehículo</th><th>Vencimiento</th><th>Estado</th></tr></thead><tbody>
+  {% for p in todas %}{% set lbl,cls=estado(p.fecha_venc) %}
+  <tr>
+    <td><strong>{{ p.nombre }}</strong></td>
+    <td><span class="badge badge-{{ 'nre' if 'NRE' in p.aseguradora else 'atm' }}">{{ p.aseguradora }}</span></td>
+    <td><span class="badge badge-{{ p.sucursal.lower() }}">{{ p.sucursal }}</span></td>
+    <td>{{ p.marca or '' }} {{ p.modelo or '' }}</td>
+    <td>{{ fmt_fecha(p.fecha_venc) }}</td>
+    <td><span class="badge badge-{{ cls }}">{{ lbl }}</span></td>
+  </tr>
+  {% endfor %}
+</tbody></table></div>
+{% endif %}
+{% endblock %}
+{% block modals %}{% include '_modal_poliza.html' %}{% endblock %}
