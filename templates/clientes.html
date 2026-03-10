@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+{% block title %}Clientes{% endblock %}
+{% block page_title %}Clientes{% endblock %}
+{% block topbar_actions %}
+  <button class="btn btn-primary" onclick="openModal('poliza')">+ Nueva Póliza</button>
+{% endblock %}
+
+{% block content %}
+<div class="table-wrap">
+  <div class="table-header">
+    <div class="table-title">{{ clientes|length }} cliente{{ 's' if clientes|length!=1 }}</div>
+    <form class="search-form" method="GET">
+      <input class="search-box" name="q" value="{{ q }}" placeholder="🔎 Nombre o DNI...">
+      <button type="submit" class="btn btn-ghost btn-sm">Buscar</button>
+    </form>
+  </div>
+  <table><thead><tr>
+    <th>Nombre</th><th>DNI / CUIT</th><th>Celular</th><th>Domicilio</th><th>Pólizas</th><th></th>
+  </tr></thead>
+  <tbody>
+    {% for c in clientes %}
+    <tr>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px">
+          <strong>{{ c.nombre }}</strong>
+          <button onclick="editarCliente('{{ c.dni or '' }}','{{ c.nombre }}')"
+            style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 5px;border-radius:5px;transition:.15s"
+            onmouseover="this.style.color='var(--accent)';this.style.background='var(--surface2)'"
+            onmouseout="this.style.color='var(--muted)';this.style.background='none'"
+            title="Editar ficha del cliente">✏</button>
+        </div>
+      </td>
+      <td style="font-family:monospace;font-size:12px">{{ c.dni or '—' }}</td>
+      <td style="color:var(--accent);font-size:12px">{{ c.celular or '—' }}</td>
+      <td style="font-size:12px;color:var(--muted)">{{ c.domicilio or '—' }}{% if c.localidad %}, {{ c.localidad }}{% endif %}</td>
+      <td><span class="badge badge-ok">{{ c.num }} póliza{{ 's' if c.num!=1 }}</span></td>
+      <td><a href="{{ url_for('polizas', q=c.nombre) }}" class="btn btn-ghost btn-sm">Ver pólizas →</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6"><div class="empty"><div class="empty-icon">👥</div><div class="empty-text">Sin clientes</div></div></td></tr>
+    {% endfor %}
+  </tbody></table>
+</div>
+{% endblock %}
+
+{% block modals %}
+{% include '_modal_poliza.html' %}
+
+<!-- MODAL EDITAR CLIENTE -->
+<div class="modal-overlay" id="modal-editar-cliente">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-title">✏ Editar Ficha del Cliente</div>
+    <p style="font-size:12px;color:var(--muted);margin:-8px 0 16px">Los cambios se aplican a todas las pólizas de este cliente.</p>
+    <form method="POST" action="/clientes/editar" id="form-editar-cliente">
+      <input type="hidden" name="dni_original" id="ec-dni-original">
+      <input type="hidden" name="nombre_original" id="ec-nombre-original">
+      <div class="form-grid">
+        <div class="form-group full"><label>Nombre completo *</label>
+          <input name="nombre" id="ec-nombre" required>
+        </div>
+        <div class="form-group"><label>DNI / CUIT</label>
+          <input name="dni" id="ec-dni">
+        </div>
+        <div class="form-group"><label>Celular</label>
+          <input name="celular" id="ec-celular" placeholder="381-xxx-xxxx">
+        </div>
+        <div class="form-group full"><label>Domicilio</label>
+          <input name="domicilio" id="ec-domicilio">
+        </div>
+        <div class="form-group"><label>CP</label>
+          <input name="cp" id="ec-cp">
+        </div>
+        <div class="form-group"><label>Localidad</label>
+          <input name="localidad" id="ec-localidad">
+        </div>
+        <div class="form-group"><label>Provincia</label>
+          <input name="provincia" id="ec-provincia">
+        </div>
+        <div class="form-group"><label>Condición IVA</label>
+          <select name="cond_iva" id="ec-cond_iva">
+            <option>CONSUMIDOR FINAL</option>
+            <option>RESPONSABLE INSCRIPTO</option>
+            <option>MONOTRIBUTISTA</option>
+            <option>EXENTO</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('editar-cliente')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">💾 Guardar Cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function editarCliente(dni, nombre) {
+  const url = dni
+    ? '/api/cliente?dni=' + encodeURIComponent(dni)
+    : '/api/cliente?nombre=' + encodeURIComponent(nombre);
+
+  fetch(url).then(r => r.json()).then(c => {
+    const set = (id, v) => { const el=document.getElementById(id); if(el) el.value=v||''; };
+    set('ec-nombre', c.nombre);
+    set('ec-dni', c.dni);
+    set('ec-celular', c.celular);
+    set('ec-domicilio', c.domicilio);
+    set('ec-cp', c.cp);
+    set('ec-localidad', c.localidad);
+    set('ec-provincia', c.provincia);
+    set('ec-dni-original', c.dni || '');
+    set('ec-nombre-original', c.nombre || '');
+    const ss = (id, v) => { const el=document.getElementById(id); if(!el||!v) return;
+      for(let o of el.options) { if(o.value===v||o.text===v){el.value=o.value;break;} } };
+    ss('ec-cond_iva', c.cond_iva);
+    openModal('editar-cliente');
+  });
+}
+
+// Buscador de nueva póliza (heredado)
+let polTimer, clientesCache = [];
+function buscarParaPoliza(q) {
+  clearTimeout(polTimer);
+  const res = document.getElementById('pol-resultados');
+  if (q.length < 2) { res.style.display='none'; return; }
+  res.style.display='block';
+  res.innerHTML='<div style="padding:12px;color:var(--muted);font-size:13px">Buscando...</div>';
+  polTimer = setTimeout(() => {
+    fetch('/api/buscar-cliente?q=' + encodeURIComponent(q)).then(r=>r.json()).then(data => {
+      clientesCache = data;
+      if (!data.length) { res.innerHTML='<div style="padding:12px;color:var(--muted)">Sin resultados</div>'; return; }
+      res.innerHTML = data.map((c,i) => `
+        <div onclick="seleccionarCliente(${i})" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border)"
+          onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+          <b>${c.nombre}</b> — DNI: ${c.dni||'—'} | ${c.patentes.length} vehículo(s): ${c.patentes.map(p=>p.patente).join(', ')}
+        </div>`).join('');
+    });
+  }, 300);
+}
+function seleccionarCliente(idx) {
+  const c = clientesCache[idx];
+  document.getElementById('pol-resultados').style.display='none';
+  document.getElementById('pol-buscar-input').value = c.nombre;
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||'';};
+  set('f-nombre',c.nombre);set('f-dni',c.dni);set('f-celular',c.celular);
+  set('f-domicilio',c.domicilio);set('f-cp',c.cp);set('f-localidad',c.localidad);set('f-provincia',c.provincia);
+  const ss=(id,v)=>{const el=document.getElementById(id);if(!el||!v)return;for(let o of el.options){if(o.value===v||o.text===v){el.value=o.value;break;}}};
+  ss('f-cond_iva',c.cond_iva);
+  if(c.patentes.length===1){cargarPatente(c.patentes[0]);document.getElementById('pol-selector-patente').style.display='none';document.getElementById('pol-seleccionado').style.display='block';}
+  else if(c.patentes.length>1){const sel=document.getElementById('pol-select-patente');sel.innerHTML='<option value="">— Seleccionar vehículo —</option>'+c.patentes.map((p,i)=>`<option value="${i}">${p.patente} — ${p.marca||''} ${p.modelo||''}</option>`).join('');sel.dataset.patentes=JSON.stringify(c.patentes);document.getElementById('pol-selector-patente').style.display='block';}
+}
+function seleccionarPatente(sel){if(!sel.value)return;const patentes=JSON.parse(sel.dataset.patentes);cargarPatente(patentes[parseInt(sel.value)]);document.getElementById('pol-seleccionado').style.display='block';}
+function cargarPatente(p){const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||'';};set('f-patente',p.patente);set('f-marca',p.marca);set('f-modelo',p.modelo);set('f-anio',p.anio);set('f-motor',p.motor);set('f-chasis',p.chasis);const ss=(id,v)=>{const el=document.getElementById(id);if(!el||!v)return;for(let o of el.options){if(o.value===v||o.text===v){el.value=o.value;break;}}};ss('f-tipo_vehiculo',p.tipo_vehiculo);ss('f-carroceria',p.carroceria);ss('f-uso',p.uso);ss('f-origen',p.origen);}
+function actualizarFechas(){const fi=document.getElementById('f-fecha_inicio').value;const mod=document.getElementById('sel-modalidad').value;if(!fi)return;fetch('/api/fecha-venc?inicio='+fi+'&modalidad='+mod).then(r=>r.json()).then(d=>{document.getElementById('f-fecha_venc').value=d.fecha_venc;});}
+function genNPoliza(){fetch('/api/gen-npoliza').then(r=>r.json()).then(d=>{document.getElementById('f-npoliza').value=d.npoliza;});}
+document.addEventListener('DOMContentLoaded',()=>{const hoy=new Date().toISOString().split('T')[0];const fi=document.getElementById('f-fecha_inicio');if(fi&&!fi.value){fi.value=hoy;actualizarFechas();}});
+</script>
+{% endblock %}
