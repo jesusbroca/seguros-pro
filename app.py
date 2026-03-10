@@ -59,6 +59,7 @@ def init_db():
                 fecha_venc TEXT NOT NULL,
                 forma_pago TEXT DEFAULT 'Efectivo',
                 obs TEXT,
+                celular TEXT,
                 activa INTEGER DEFAULT 1,
                 creado TEXT DEFAULT CURRENT_TIMESTAMP,
                 usuario_id INTEGER
@@ -110,6 +111,9 @@ def init_db():
             db.execute("INSERT INTO usuarios (nombre,email,password,rol,sucursal) VALUES (?,?,?,?,?)",
                       ('Administrador','admin@seguros.com', admin_pw,'admin','ambas'))
             db.commit()
+        except: pass
+        # Migraciones
+        try: db.execute("ALTER TABLE polizas ADD COLUMN celular TEXT"); db.commit()
         except: pass
 
 try:
@@ -244,21 +248,51 @@ def cambiar_password():
 @app.route('/')
 @login_required
 def index():
-    suc = sucursal_usuario()
+    suc      = sucursal_usuario()
+    fecha_desde = request.args.get('desde', '')
+    fecha_hasta = request.args.get('hasta', '')
+    # Default: mes actual
+    mes_actual = datetime.now().strftime('%Y-%m')
+    if not fecha_desde: fecha_desde = datetime.now().strftime('%Y-%m-01')
+    if not fecha_hasta: fecha_hasta = datetime.now().strftime('%Y-%m-%d')
+
     with get_db() as db:
-        if suc == 'ambas':
-            polizas = db.execute("SELECT * FROM polizas WHERE activa=1 ORDER BY fecha_venc").fetchall()
-            cobros_mes = db.execute("SELECT * FROM cobros WHERE strftime('%Y-%m',fecha)=strftime('%Y-%m','now')").fetchall()
-        else:
-            polizas = db.execute("SELECT * FROM polizas WHERE activa=1 AND sucursal=? ORDER BY fecha_venc",(suc,)).fetchall()
-            cobros_mes = db.execute("SELECT * FROM cobros WHERE strftime('%Y-%m',fecha)=strftime('%Y-%m','now') AND sucursal=?",(suc,)).fetchall()
-    activas    = len(polizas)
-    vencen     = len([p for p in polizas if 0 <= dias_venc(p['fecha_venc']) <= 30])
-    total_mes  = sum(c['monto'] for c in cobros_mes)
-    clientes_u = len(set(p['dni'] or p['nombre'] for p in polizas))
+        base = "WHERE activa=1" + (" AND sucursal=?" if suc != 'ambas' else "")
+        params = [suc] if suc != 'ambas' else []
+        # Pólizas activas
+        polizas_todas = db.execute(f"SELECT * FROM polizas {base} ORDER BY creado DESC", params).fetchall()
+        # Pólizas recientes (10 más nuevas)
+        recientes = polizas_todas[:10]
+        # Stats del período filtrado
+        pparams = params + [fecha_desde, fecha_hasta]
+        pol_periodo = db.execute(
+            f"SELECT * FROM polizas {base} AND fecha_inicio>=? AND fecha_inicio<=? ORDER BY fecha_inicio DESC",
+            pparams).fetchall()
+        # Cobros del período
+        cbase = "WHERE fecha>=? AND fecha<=?" + (" AND sucursal=?" if suc != 'ambas' else "")
+        cparams = [fecha_desde, fecha_hasta] + ([suc] if suc != 'ambas' else [])
+        cobros_periodo = db.execute(f"SELECT * FROM cobros {cbase}", cparams).fetchall()
+
+    activas    = len(polizas_todas)
+    vencen     = len([p for p in polizas_todas if 0 <= dias_venc(p['fecha_venc']) <= 30])
+    clientes_u = len(set(p['dni'] or p['nombre'] for p in polizas_todas))
+    # Siniestros abiertos
+    with get_db() as db:
+        sin_params = [] if suc == 'ambas' else [suc]
+        sin_sql = "SELECT COUNT(*) FROM siniestros WHERE estado='Abierto'" + (" AND sucursal=?" if suc != 'ambas' else "")
+        siniestros_abiertos = db.execute(sin_sql, sin_params).fetchone()[0]
+    # Stats período
+    pol_nre    = sum(1 for p in pol_periodo if 'NRE' in p['aseguradora'])
+    pol_atm    = sum(1 for p in pol_periodo if 'ATM' in p['aseguradora'])
+    monto_per  = sum(p['premio'] for p in pol_periodo)
+    cobros_per = sum(c['monto'] for c in cobros_periodo)
+
     return render_template('index.html',
-        polizas=polizas[:10], activas=activas, vencen=vencen,
-        total_mes=total_mes, clientes=clientes_u,
+        polizas=recientes, activas=activas, vencen=vencen,
+        clientes=clientes_u, siniestros_abiertos=siniestros_abiertos,
+        pol_periodo=len(pol_periodo), pol_nre=pol_nre, pol_atm=pol_atm,
+        monto_periodo=monto_per, cobros_periodo=cobros_per,
+        fecha_desde=fecha_desde, fecha_hasta=fecha_hasta,
         estado=estado, fmt_fecha=fmt_fecha, fmt_peso=fmt_peso)
 
 # ─── PÓLIZAS ──────────────────────────────────────────────────────────────────
@@ -303,8 +337,8 @@ def nueva_poliza():
             (npoliza,aseguradora,sucursal,nombre,dni,domicilio,cp,localidad,provincia,
              cond_iva,marca,modelo,anio,patente,motor,chasis,tipo_vehiculo,carroceria,
              uso,origen,cobertura,modalidad,prima,rec_financiero,iva,otros_impuestos,
-             premio,fecha_inicio,fecha_venc,forma_pago,obs,usuario_id)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+             premio,fecha_inicio,fecha_venc,forma_pago,obs,celular,usuario_id)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (npoliza, f['aseguradora'], suc, f['nombre'],
              f.get('dni'), f.get('domicilio'), f.get('cp'),
              f.get('localidad','San Miguel de Tucuman'),
@@ -322,10 +356,40 @@ def nueva_poliza():
              float(f.get('premio') or prima),
              fecha_inicio, fecha_venc,
              f.get('forma_pago','Efectivo'),
-             f.get('obs'), session['user_id']))
+             f.get('obs'), f.get('celular'), session['user_id']))
         db.commit()
     flash(f'Póliza {npoliza} creada correctamente','ok')
     return redirect(url_for('polizas'))
+
+@app.route('/polizas/editar/<int:pid>', methods=['POST'])
+@login_required
+def editar_poliza(pid):
+    f = request.form
+    fecha_inicio = f.get('fecha_inicio')
+    modalidad    = f.get('modalidad','trimestral_unico')
+    fecha_venc   = f.get('fecha_venc') or fecha_venc_por_modalidad(fecha_inicio, modalidad)
+    prima        = float(f.get('prima') or 0)
+    with get_db() as db:
+        db.execute("""UPDATE polizas SET
+            aseguradora=?,nombre=?,dni=?,domicilio=?,cp=?,localidad=?,provincia=?,
+            cond_iva=?,marca=?,modelo=?,anio=?,patente=?,motor=?,chasis=?,
+            tipo_vehiculo=?,carroceria=?,uso=?,origen=?,modalidad=?,prima=?,
+            rec_financiero=?,iva=?,otros_impuestos=?,premio=?,fecha_inicio=?,
+            fecha_venc=?,forma_pago=?,obs=?,celular=?
+            WHERE id=?""",
+            (f['aseguradora'], f['nombre'], f.get('dni'), f.get('domicilio'),
+             f.get('cp'), f.get('localidad'), f.get('provincia'),
+             f.get('cond_iva'), f.get('marca'), f.get('modelo'), f.get('anio'),
+             f.get('patente','').upper(), f.get('motor'), f.get('chasis'),
+             f.get('tipo_vehiculo'), f.get('carroceria'), f.get('uso'), f.get('origen'),
+             modalidad, prima,
+             float(f.get('rec_financiero') or 0), float(f.get('iva') or 0),
+             float(f.get('otros_impuestos') or 0), float(f.get('premio') or prima),
+             fecha_inicio, fecha_venc, f.get('forma_pago'), f.get('obs'),
+             f.get('celular'), pid))
+        db.commit()
+    flash('Póliza actualizada correctamente','ok')
+    return redirect(request.referrer or url_for('polizas'))
 
 @app.route('/polizas/eliminar/<int:pid>', methods=['POST'])
 @login_required
@@ -538,8 +602,76 @@ def exportar_cobros():
     return Response(out.getvalue(), mimetype='text/csv',
         headers={"Content-Disposition":f"attachment;filename=cobros_{date.today()}.csv"})
 
-if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT',5000)))
+@app.route('/exportar/vencimientos-excel')
+@login_required
+def exportar_vencimientos_excel():
+    suc = sucursal_usuario()
+    today = date.today()
+    limite = (today + timedelta(days=30)).strftime('%Y-%m-%d')
+    hoy_str = today.strftime('%Y-%m-%d')
+    with get_db() as db:
+        if suc == 'ambas':
+            rows = db.execute("""SELECT * FROM polizas WHERE activa=1
+                AND fecha_venc>=? AND fecha_venc<=? ORDER BY fecha_venc""",
+                (hoy_str, limite)).fetchall()
+        else:
+            rows = db.execute("""SELECT * FROM polizas WHERE activa=1 AND sucursal=?
+                AND fecha_venc>=? AND fecha_venc<=? ORDER BY fecha_venc""",
+                (suc, hoy_str, limite)).fetchall()
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'Vencimientos 30 días'
+        headers = ['Nº Póliza','Aseguradora','Sucursal','Nombre','DNI','Celular',
+                   'Domicilio','Localidad','Marca','Modelo','Año','Patente',
+                   'Vencimiento','Días restantes','Premio','Modalidad']
+        header_fill = PatternFill('solid', fgColor='1e2230')
+        header_font = Font(bold=True, color='e8c84a')
+        for col, h in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=h)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center')
+        for row_idx, r in enumerate(rows, 2):
+            dias = (datetime.strptime(r['fecha_venc'],'%Y-%m-%d').date() - today).days
+            ws.append([r['npoliza'], r['aseguradora'], r['sucursal'], r['nombre'],
+                       r['dni'], r['celular'] or '', r['domicilio'], r['localidad'],
+                       r['marca'], r['modelo'], r['anio'], r['patente'],
+                       r['fecha_venc'], dias, r['premio'],
+                       {'trimestral_unico':'Trim. único','trimestral_mensual':'Trim. mensual',
+                        'bimestral_unico':'Bim. único'}.get(r['modalidad'],r['modalidad'])])
+        for col in ws.columns:
+            max_len = max((len(str(c.value or '')) for c in col), default=8)
+            ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 35)
+        buf = io.BytesIO()
+        wb.save(buf); buf.seek(0)
+        return send_file(buf, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                         as_attachment=True, download_name=f'vencimientos_30dias_{date.today()}.xlsx')
+    except ImportError:
+        # fallback CSV si no hay openpyxl
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow(['Póliza','Aseguradora','Sucursal','Nombre','DNI','Celular',
+                    'Domicilio','Localidad','Marca','Modelo','Año','Patente','Vencimiento','Días','Premio'])
+        for r in rows:
+            dias = (datetime.strptime(r['fecha_venc'],'%Y-%m-%d').date() - today).days
+            w.writerow([r['npoliza'],r['aseguradora'],r['sucursal'],r['nombre'],
+                        r['dni'],r['celular'] or '',r['domicilio'],r['localidad'],
+                        r['marca'],r['modelo'],r['anio'],r['patente'],r['fecha_venc'],dias,r['premio']])
+        out.seek(0)
+        from flask import Response
+        return Response(out.getvalue(), mimetype='text/csv',
+            headers={"Content-Disposition":f"attachment;filename=vencimientos_{date.today()}.csv"})
+
+@app.route('/api/poliza/<int:pid>')
+@login_required
+def api_poliza(pid):
+    with get_db() as db:
+        p = db.execute("SELECT * FROM polizas WHERE id=?", (pid,)).fetchone()
+    if not p: return jsonify({}), 404
+    return jsonify(dict(p))
 
 @app.route('/api/buscar-cliente')
 @login_required
@@ -548,19 +680,35 @@ def api_buscar_cliente():
     if len(q) < 2:
         return jsonify([])
     suc = sucursal_usuario()
-    sql = """SELECT DISTINCT nombre, dni, domicilio, cp, localidad, provincia,
+    # Busca todas las pólizas que coincidan — el frontend agrupa por cliente
+    sql = """SELECT id, nombre, dni, domicilio, cp, localidad, provincia,
                     cond_iva, marca, modelo, anio, patente, motor, chasis,
-                    tipo_vehiculo, carroceria, uso, origen
+                    tipo_vehiculo, carroceria, uso, origen, celular
              FROM polizas WHERE activa=1
              AND (nombre LIKE ? OR dni LIKE ? OR patente LIKE ?)"""
     params = [f'%{q}%', f'%{q}%', f'%{q}%']
     if suc != 'ambas':
         sql += " AND sucursal=?"
         params.append(suc)
-    sql += " ORDER BY nombre LIMIT 12"
+    sql += " ORDER BY nombre, creado DESC LIMIT 30"
     with get_db() as db:
         rows = db.execute(sql, params).fetchall()
-    return jsonify([dict(r) for r in rows])
+    # Agrupar por cliente (dni o nombre), listar sus patentes
+    clientes = {}
+    for r in rows:
+        key = r['dni'] or r['nombre']
+        if key not in clientes:
+            clientes[key] = dict(r)
+            clientes[key]['patentes'] = []
+        pat = r['patente']
+        if pat and pat not in [p2['patente'] for p2 in clientes[key]['patentes']]:
+            clientes[key]['patentes'].append({
+                'patente': pat, 'marca': r['marca'], 'modelo': r['modelo'],
+                'anio': r['anio'], 'motor': r['motor'], 'chasis': r['chasis'],
+                'tipo_vehiculo': r['tipo_vehiculo'], 'carroceria': r['carroceria'],
+                'uso': r['uso'], 'origen': r['origen'], 'id': r['id']
+            })
+    return jsonify(list(clientes.values())[:12])
 
 def gen_ndenuncia():
     prefix = datetime.now().strftime('%Y%m%d')

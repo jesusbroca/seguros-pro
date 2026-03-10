@@ -24,7 +24,9 @@
       <button type="submit" class="btn btn-ghost btn-sm">Buscar</button>
     </form>
   </div>
-  <table><thead><tr><th>Nº Póliza</th><th>Cliente</th><th>Aseg.</th><th>Suc.</th><th>Vehículo</th><th>Patente</th><th>Modalidad</th><th>Vencimiento</th><th>Premio</th><th>Estado</th><th>Documentos</th><th></th></tr></thead>
+  <table><thead><tr>
+    <th>Nº Póliza</th><th>Cliente</th><th>Aseg.</th><th>Suc.</th><th>Vehículo</th><th>Patente</th><th>Modalidad</th><th>Vencimiento</th><th>Premio</th><th>Estado</th><th>Documentos</th><th></th>
+  </tr></thead>
   <tbody>
     {% for p in polizas %}{% set lbl,cls=estado(p.fecha_venc) %}
     <tr>
@@ -40,9 +42,12 @@
       <td><span class="badge badge-{{ cls }}">{{ lbl }}</span></td>
       <td>{% from '_docs_btns.html' import docs_btns %}{{ docs_btns(p) }}</td>
       <td>
-        <form method="POST" action="{{ url_for('eliminar_poliza', pid=p.id) }}" style="display:inline" onsubmit="return confirm('¿Archivar?')">
-          <button class="btn btn-danger btn-sm">🗑</button>
-        </form>
+        <div class="action-btns">
+          <button class="btn btn-ghost btn-sm" onclick="abrirEditar({{ p.id }})">✏</button>
+          <form method="POST" action="{{ url_for('eliminar_poliza', pid=p.id) }}" style="display:inline" onsubmit="return confirm('¿Archivar?')">
+            <button class="btn btn-danger btn-sm">🗑</button>
+          </form>
+        </div>
       </td>
     </tr>
     {% else %}
@@ -51,81 +56,92 @@
   </tbody></table>
 </div>
 {% endblock %}
-{% block modals %}{% include '_modal_poliza.html' %}{% endblock %}
+
+{% block modals %}
+{% include '_modal_poliza.html' %}
+{% include '_modal_editar.html' %}
+{% endblock %}
+
 {% block scripts %}
 <script>
-// ── BUSCADOR CON LUPA ──────────────────────────────────────────────────────
-function abrirBuscador() {
-  openModal('buscador');
-  setTimeout(()=>document.getElementById('buscar-input').focus(), 100);
-}
-function cerrarBuscador() {
-  closeModal('buscador');
-}
+// ── BUSCADOR PARA NUEVA PÓLIZA ─────────────────────────────────────────────
+let polTimer;
+let clientesCache = [];
 
-let buscarTimer;
-function buscarCliente(q) {
-  clearTimeout(buscarTimer);
-  const res = document.getElementById('buscar-resultados-modal');
-  if (q.length < 2) {
-    res.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">Escribí al menos 2 caracteres</div>';
-    return;
-  }
-  res.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">Buscando...</div>';
-  buscarTimer = setTimeout(() => {
+function buscarParaPoliza(q) {
+  clearTimeout(polTimer);
+  const res = document.getElementById('pol-resultados');
+  if (q.length < 2) { res.style.display='none'; return; }
+  res.style.display='block';
+  res.innerHTML='<div style="padding:12px;color:var(--muted);font-size:13px">Buscando...</div>';
+  polTimer = setTimeout(() => {
     fetch('/api/buscar-cliente?q=' + encodeURIComponent(q))
       .then(r => r.json())
       .then(data => {
+        clientesCache = data;
         if (!data.length) {
-          res.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">No se encontraron resultados</div>';
+          res.innerHTML='<div style="padding:12px;color:var(--muted);font-size:13px">Sin resultados</div>';
           return;
         }
-        res.innerHTML = data.map(c => `
-          <div onclick='seleccionarCliente(${JSON.stringify(c)})'
-            style="padding:12px 16px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s"
+        res.innerHTML = data.map((c,i) => `
+          <div onclick="seleccionarCliente(${i})"
+            style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border)"
             onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-            <div style="font-weight:700;font-size:14px;color:var(--text)">${c.nombre}</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:3px">
-              DNI: ${c.dni||'—'} &nbsp;|&nbsp; Patente: ${c.patente||'—'} &nbsp;|&nbsp; ${c.marca||''} ${c.modelo||''} ${c.anio||''}
+            <div style="font-weight:700;font-size:13px">${c.nombre}</div>
+            <div style="font-size:11px;color:var(--muted)">
+              DNI: ${c.dni||'—'} &nbsp;|&nbsp;
+              ${c.patentes.length} vehículo(s): ${c.patentes.map(p=>p.patente).join(', ')}
             </div>
-            <div style="font-size:11px;color:var(--muted)">${c.domicilio||''} ${c.localidad?'— '+c.localidad:''}</div>
           </div>`).join('');
-      })
-      .catch(() => {
-        res.innerHTML = '<div style="text-align:center;padding:30px;color:var(--danger)">Error al buscar</div>';
       });
   }, 300);
 }
 
-function seleccionarCliente(c) {
-  // Llenar todos los campos del formulario
-  const set = (id, val) => { const el = document.getElementById(id); if(el) el.value = val||''; };
-  set('f-nombre',       c.nombre);
-  set('f-dni',          c.dni);
-  set('f-domicilio',    c.domicilio);
-  set('f-cp',           c.cp);
-  set('f-localidad',    c.localidad);
-  set('f-provincia',    c.provincia);
-  set('f-marca',        c.marca);
-  set('f-modelo',       c.modelo);
-  set('f-anio',         c.anio);
-  set('f-patente',      c.patente);
-  set('f-motor',        c.motor);
-  set('f-chasis',       c.chasis);
-  // Selects
-  const setSelect = (id, val) => {
-    const el = document.getElementById(id);
-    if (!el || !val) return;
-    for (let opt of el.options) { if (opt.value === val || opt.text === val) { el.value = opt.value; break; } }
-  };
-  setSelect('f-cond_iva',      c.cond_iva);
-  setSelect('f-tipo_vehiculo', c.tipo_vehiculo);
-  setSelect('f-carroceria',    c.carroceria);
-  setSelect('f-uso',           c.uso);
-  setSelect('f-origen',        c.origen);
+function seleccionarCliente(idx) {
+  const c = clientesCache[idx];
+  document.getElementById('pol-resultados').style.display='none';
+  document.getElementById('pol-buscar-input').value = c.nombre;
 
-  cerrarBuscador();
-  openModal('poliza');
+  // Llenar datos personales siempre
+  const set = (id, v) => { const el=document.getElementById(id); if(el) el.value=v||''; };
+  set('f-nombre', c.nombre); set('f-dni', c.dni); set('f-celular', c.celular);
+  set('f-domicilio', c.domicilio); set('f-cp', c.cp);
+  set('f-localidad', c.localidad); set('f-provincia', c.provincia);
+  const ss = (id, v) => { const el=document.getElementById(id); if(!el||!v) return;
+    for(let o of el.options){if(o.value===v||o.text===v){el.value=o.value;break;}} };
+  ss('f-cond_iva', c.cond_iva);
+
+  if (c.patentes.length === 1) {
+    // Una sola patente — carga directo
+    cargarPatente(c.patentes[0]);
+    document.getElementById('pol-selector-patente').style.display='none';
+    document.getElementById('pol-seleccionado').style.display='block';
+  } else if (c.patentes.length > 1) {
+    // Múltiples — mostrar desplegable
+    const sel = document.getElementById('pol-select-patente');
+    sel.innerHTML = '<option value="">— Seleccionar vehículo —</option>' +
+      c.patentes.map((p,i)=>`<option value="${i}">${p.patente} — ${p.marca||''} ${p.modelo||''} ${p.anio||''}</option>`).join('');
+    sel.dataset.patentes = JSON.stringify(c.patentes);
+    document.getElementById('pol-selector-patente').style.display='block';
+    document.getElementById('pol-seleccionado').style.display='none';
+  }
+}
+
+function seleccionarPatente(sel) {
+  if (!sel.value) return;
+  const patentes = JSON.parse(sel.dataset.patentes);
+  cargarPatente(patentes[parseInt(sel.value)]);
+  document.getElementById('pol-seleccionado').style.display='block';
+}
+
+function cargarPatente(p) {
+  const set = (id, v) => { const el=document.getElementById(id); if(el) el.value=v||''; };
+  set('f-patente', p.patente); set('f-marca', p.marca); set('f-modelo', p.modelo);
+  set('f-anio', p.anio); set('f-motor', p.motor); set('f-chasis', p.chasis);
+  const ss = (id, v) => { const el=document.getElementById(id); if(!el||!v) return;
+    for(let o of el.options){if(o.value===v||o.text===v){el.value=o.value;break;}} };
+  ss('f-tipo_vehiculo', p.tipo_vehiculo); ss('f-carroceria', p.carroceria);
+  ss('f-uso', p.uso); ss('f-origen', p.origen);
 }
 
 // ── FECHAS AUTO ────────────────────────────────────────────────────────────
@@ -134,17 +150,41 @@ function actualizarFechas() {
   const mod = document.getElementById('sel-modalidad').value;
   if (!fi) return;
   fetch(`/api/fecha-venc?inicio=${fi}&modalidad=${mod}`)
-    .then(r => r.json())
-    .then(d => { document.getElementById('f-fecha_venc').value = d.fecha_venc; });
+    .then(r=>r.json())
+    .then(d=>{ document.getElementById('f-fecha_venc').value = d.fecha_venc; });
 }
 
 function genNPoliza() {
-  fetch('/api/gen-npoliza')
-    .then(r=>r.json())
-    .then(d=>{ document.getElementById('f-npoliza').value = d.npoliza; });
+  fetch('/api/gen-npoliza').then(r=>r.json()).then(d=>{
+    document.getElementById('f-npoliza').value = d.npoliza;
+  });
 }
 
-// Inicializar fecha al abrir modal
+// ── EDITAR PÓLIZA ─────────────────────────────────────────────────────────
+function abrirEditar(id) {
+  fetch('/api/poliza/' + id)
+    .then(r => r.json())
+    .then(p => {
+      const s = (id2, val) => { const el=document.getElementById(id2); if(el) el.value=val||''; };
+      s('e-nombre',p.nombre); s('e-dni',p.dni); s('e-celular',p.celular);
+      s('e-domicilio',p.domicilio); s('e-cp',p.cp); s('e-localidad',p.localidad);
+      s('e-provincia',p.provincia); s('e-marca',p.marca); s('e-modelo',p.modelo);
+      s('e-anio',p.anio); s('e-patente',p.patente); s('e-motor',p.motor);
+      s('e-chasis',p.chasis); s('e-prima',p.prima); s('e-rec_financiero',p.rec_financiero);
+      s('e-iva',p.iva); s('e-otros_impuestos',p.otros_impuestos); s('e-premio',p.premio);
+      s('e-fecha_inicio',p.fecha_inicio); s('e-fecha_venc',p.fecha_venc); s('e-obs',p.obs);
+      const ss = (id2, val) => { const el=document.getElementById(id2); if(!el||!val) return;
+        for(let o of el.options){if(o.value===val||o.text===val){el.value=o.value;break;}} };
+      ss('e-aseguradora',p.aseguradora); ss('e-cond_iva',p.cond_iva);
+      ss('e-modalidad',p.modalidad); ss('e-tipo_vehiculo',p.tipo_vehiculo);
+      ss('e-carroceria',p.carroceria); ss('e-uso',p.uso); ss('e-origen',p.origen);
+      ss('e-forma_pago',p.forma_pago);
+      document.getElementById('form-editar').action = '/polizas/editar/' + p.id;
+      openModal('editar');
+    });
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   const hoy = new Date().toISOString().split('T')[0];
   const fi = document.getElementById('f-fecha_inicio');
